@@ -3,4 +3,6 @@ bin
 src/gfx/*.c
 src/gfx/*.h
 src/gfx/*.log
+src/gfx/out/*.c
+src/gfx/out/*.h
 /SF_SESSION

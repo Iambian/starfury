@@ -4,6 +4,7 @@
 #include <stdint.h>
 #include <graphx.h>		//Provides typedefs for graphx objects
 
+/* DEFINES FOR GAME STATE */
 #define GS_STATE_MASK 0xF0
 
 #define GS_TITLE 0x00
@@ -27,13 +28,11 @@
 #define GS_GAMEOVERDYING (GS_GAMEOVER|1)
 #define GS_GAMEOVERDISPLAY (GS_GAMEOVER|2)
 
-
-
+/* DEFINES FOR COLORS */
 #define COLOR_DARKER (0<<6)
 #define COLOR_DARK (1<<6)
 #define COLOR_LIGHT (2<<6)
 #define COLOR_LIGHTER (3<<6)
-/* for binary literal 0b11_11_00_11 */
 #define COLOR_RED (3<<4)
 #define COLOR_MAROON (2<<4)
 #define COLOR_LIME (3<<2)
@@ -49,15 +48,20 @@
 #define COLOR_DARKGRAY ((1<<4)|(1<<2)|(1<<0))
 #define COLOR_BLACK 0
 
-
-
 #define TRANSPARENT_COLOR (COLOR_LIGHTER|COLOR_MAGENTA)
+
+#define DEFAULT_COLOR COLOR_GREEN
+
+/* DEFINES FOR VARIOUS SIZES */
+
+#define TEMPBLOCK_MAX_W 32
+#define TEMPBLOCK_MAX_H 32
+
+
+/* ENUMS AND TYPEDEFS */
 
 enum BKT { FILLER=0,COMMAND=1,ENGINE=2,WEAPON=4,SPECIAL=8 };
 enum DIR { UP=0,UPRIGHT,RIGHT,DOWNRIGHT,DOWN,DOWNLEFT,LEFT,UPLEFT};
-
-
-
 
 typedef union fp16_8 {
 	int fp;

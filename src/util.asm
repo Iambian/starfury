@@ -1,6 +1,6 @@
 XDEF _fn_DrawNestedSprite
 XDEF _fn_FillSprite
-
+XDEF _fn_Setup_Palette
 
 .ASSUME ADL=1
 
@@ -64,3 +64,57 @@ _fn_FillSprite:
 	INC DE
 	LDIR	;COPY COLOR TO WHOLE SPRITE
 	RET
+
+;in: No inputs
+_fn_Setup_Palette:
+	LD HL,0E30019h
+	RES 0,(HL)       ;Reset BGR bit to make our mapping correct
+	LD	BC,0
+	LD	IY,0E30200h  ;Address of palette
+;palette index format: IIRRGGBB palette entry: IBBBBBGG GGGRRRRR
+setupPaletteLoop:
+	LD	HL,0
+	;PROCESS BLUE. TARGET 0bbii0--
+	LD	A,B
+	RRCA             ;BIIRRGGB
+	LD E,A           ;Keep for red processing
+	RRCA             ;BBIIRRGG
+	LD	C,A          ;Keep for green processing
+	RRCA             ;GBBIIRRG
+	AND	A,01111000b  ;0BBII000
+	LD	H,A          ;Blue set.
+	;PROCESS GREEN. TARGET ii0000gg, MASK LOW NIBBLE INTO HIGH BYTE
+	LD A,C           ;BBIIRRGG
+	XOR	H            ;xxxxxxyy
+	AND	A,00000011b  ;keep low bits to mask back to original
+	XOR	H            ;0BBII0GG
+	LD	H,A          ;Green high set (------GG)
+	LD	L,B          ;Green low set  (II------)
+	;PROCESS RED. TARGET 000rrii0
+	LD	A,B          ;IIRRGGBB
+	RLCA             ;IRRGGBBI
+	RLCA             ;RRGGBBII
+	RLCA             ;RGGBBIIR
+	XOR	E            ;-----xx-
+	AND	A,00000110b
+	XOR	E            ;biiRRIIb
+	XOR L            ;---xxxx-
+	AND A,00011110b
+	XOR	L            ;IIxRRIIx
+	AND	A,11011110b  ;II0RRII0
+	LD	L,A
+	LD	(IY+0),HL
+	LEA IY,IY+2
+	INC B
+	JR NZ,setupPaletteLoop
+	RET
+
+
+
+
+
+
+
+
+
+

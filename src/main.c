@@ -42,9 +42,11 @@ void error(char *msg);
 
 /* Put all your globals here */
 
-gfx_sprite_t *buildarea;  //Up to 96x96 upscaled by 2 during render.
+gfx_sprite_t *buildarea;		//Up to 96x96 upscaled by 2 during render.
+gfx_sprite_t *tempblock_grid; 	//Up to 32x32 (4x4 block)
+gfx_sprite_t *tempblock_inv;    //Up to 32x32 (4x4 block)
 uint8_t gridlevel;        //Allowed values 1,2,3. 0 is ignored
-
+uint8_t curcolor;         //Currently selected color (keep intensity 0)
 
 
 
@@ -56,20 +58,19 @@ void main(void) {
 	
     gfx_Begin(gfx_8bpp);
 	gfx_SetDrawBuffer();
-	setup_palette();
+	//setup_palette();
+	fn_Setup_Palette();
 	gfx_SetTransparentColor(TRANSPARENT_COLOR);
 	/* Load save file */
 	
 	/* Insert game logic here */
+	curcolor = DEFAULT_COLOR;
 	buildarea = NULL; /*Unsure if this is BSS. Added to ensure value if not */
-	
+	tempblock_grid = gfx_MallocSprite(TEMPBLOCK_MAX_W,TEMPBLOCK_MAX_H);
+	tempblock_inv  = gfx_MallocSprite(TEMPBLOCK_MAX_W,TEMPBLOCK_MAX_H);
 	
 	/* INITIALIZE DEBUG LOGIC */
 	initGridArea(3);  //max size
-	
-	
-	
-	gfx_MallocSprite(96,96);  //Up to 96x96 (then x2 on render). Can be 
 	dbg_sprintf(dbgout,"Data output %i: ",blockobject_list[3].w);
 	
 	/* Start game */
@@ -83,12 +84,12 @@ void main(void) {
 		gfx_FillScreen(COLOR_BLACK);
 		//inventory bar
 		gfx_SetColor(COLOR_GRAY|COLOR_LIGHTER);
-		gfx_FillRectangle_NoClip(0,0,64,164); //full bar
+		gfx_FillRectangle_NoClip(0+12,0,64-24,164); //full bar
 		gfx_SetColor(COLOR_GRAY|COLOR_LIGHT);
 		gfx_FillRectangle_NoClip(0,58,64,48); //cur select
 		//preview
-		gfx_SetColor(COLOR_GRAY|COLOR_DARKER);
-		gfx_FillRectangle_NoClip(0,164,64,64);
+		gfx_SetColor(COLOR_BLUE|COLOR_DARKER);
+		gfx_Rectangle_NoClip(0,164,64,64);
 		//status bar
 		gfx_SetColor(COLOR_GRAY|COLOR_LIGHTER);
 		gfx_FillRectangle_NoClip(0,164+64,320,12);
@@ -96,8 +97,9 @@ void main(void) {
 		gfx_SetColor(COLOR_DARKGRAY|COLOR_DARKER);
 		gfx_FillRectangle_NoClip(64,(164+64-12),(320-64),12);
 		//ship grid build area
-		gfx_SetColor(COLOR_WHITE|COLOR_DARKER);
-		gfx_FillRectangle_NoClip(64+6,24,192,192);
+		drawGridArea();
+//		gfx_SetColor(COLOR_WHITE|COLOR_DARKER);
+//		gfx_FillRectangle_NoClip(64+6,24,192,192);
 		//Limit field
 		gfx_SetColor(COLOR_GRAY|COLOR_LIGHTER);
 		gfx_FillRectangle_NoClip((320-64),0,64,24);
@@ -120,7 +122,7 @@ void main(void) {
 
 /* Put other functions here */
 
-
+/*
 void setup_palette(void) {
 	int i;
 	uint16_t *palette,tempcolor;
@@ -139,7 +141,7 @@ void setup_palette(void) {
 	} while (++i<256);
 	return;
 }
-
+*/
 void initGridArea(uint8_t grlevel) {
 	uint8_t v;
 	grlevel &= 3;
@@ -151,7 +153,7 @@ void initGridArea(uint8_t grlevel) {
 	if (!(buildarea = gfx_MallocSprite(v,v))) {
 		error("Buildarea malloc fail");
 	}
-	fn_FillSprite(buildarea,COLOR_RED);  //temp color. set to 0 later
+	fn_FillSprite(buildarea,TRANSPARENT_COLOR);  //temp color. set to 0 later
 	
 }
 
@@ -159,7 +161,7 @@ void drawGridArea(void) {
 	int sx,tx;
 	uint8_t offset,sy,ty,cols,gridy,gridx,limit;
 	offset = 32-((gridlevel-1)<<4);
-	sx = 64+4+offset;
+	sx = 64+6+offset;
 	sy = 24+offset;
 	limit = (gridlevel<<1)+6;  //8,10,12
 	gfx_SetColor(COLOR_GRAY|COLOR_LIGHTER);
@@ -168,7 +170,7 @@ void drawGridArea(void) {
 			gfx_Rectangle_NoClip(sx+(gridx*16),sy+(gridy*16),16,16);
 		}
 	}
-	gfx_ScaledTransparentSprite_NoClip(buildarea,64+6+offset,24+offset,2,2);
+	gfx_ScaledTransparentSprite_NoClip(buildarea,sx,sy,2,2);
 }
 
 
