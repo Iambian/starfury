@@ -33,20 +33,26 @@
 
 /* Put your function prototypes here */
 void setup_palette(void);
-void keywait(void);
-void waitanykey(void);
 void initGridArea(uint8_t grlevel);
 void drawGridArea(void);
+void drawInventory(void);
+uint8_t getPrevInvIndex(uint8_t cidx);
+uint8_t getNextInvIndex(uint8_t cidx);
 
+void keywait(void);
+void waitanykey(void);
 void error(char *msg);
 
 /* Put all your globals here */
+uint8_t *inventory; //256 entry wide, indexed by position. Set from save file l8r
 
 gfx_sprite_t *buildarea;		//Up to 96x96 upscaled by 2 during render.
 gfx_sprite_t *tempblock_grid; 	//Up to 32x32 (4x4 block)
 gfx_sprite_t *tempblock_inv;    //Up to 32x32 (4x4 block)
+gfx_sprite_t *tempblock_scratch;	//Up to 32x32 (4x4 block)
 uint8_t gridlevel;        //Allowed values 1,2,3. 0 is ignored
 uint8_t curcolor;         //Currently selected color (keep intensity 0)
+uint8_t curindex;         //Index of currently selected object
 
 
 
@@ -68,8 +74,11 @@ void main(void) {
 	buildarea = NULL; /*Unsure if this is BSS. Added to ensure value if not */
 	tempblock_grid = gfx_MallocSprite(TEMPBLOCK_MAX_W,TEMPBLOCK_MAX_H);
 	tempblock_inv  = gfx_MallocSprite(TEMPBLOCK_MAX_W,TEMPBLOCK_MAX_H);
+	tempblock_scratch = gfx_MallocSprite(TEMPBLOCK_MAX_W,TEMPBLOCK_MAX_H);
 	
 	/* INITIALIZE DEBUG LOGIC */
+	inventory = malloc(256);
+	for (i=2;i<6;i++) inventory[i] = 5;  //skip cmd unit 1 for testing
 	initGridArea(3);  //max size
 	dbg_sprintf(dbgout,"Data output %i: ",blockobject_list[3].w);
 	
@@ -83,10 +92,7 @@ void main(void) {
 		//maintenance
 		gfx_FillScreen(COLOR_BLACK);
 		//inventory bar
-		gfx_SetColor(COLOR_GRAY|COLOR_LIGHTER);
-		gfx_FillRectangle_NoClip(0+12,0,64-24,164); //full bar
-		gfx_SetColor(COLOR_GRAY|COLOR_LIGHT);
-		gfx_FillRectangle_NoClip(0,58,64,48); //cur select
+		drawInventory();
 		//preview
 		gfx_SetColor(COLOR_BLUE|COLOR_DARKER);
 		gfx_Rectangle_NoClip(0,164,64,64);
@@ -173,6 +179,90 @@ void drawGridArea(void) {
 	gfx_ScaledTransparentSprite_NoClip(buildarea,sx,sy,2,2);
 }
 
+//No prototype. pos=[0-3], invidx = index to inventory slot
+void drawSmallInvBox(uint8_t pos,uint8_t invidx) {
+	uint8_t i,nw,nh,nx,ny;
+	unsigned int temp;
+	static uint8_t smallinv_y_lut[] = {1+6,1+6+28,1+6+28+1+48+1,1+6+28+1+48+1,+28};
+	blockprop_obj *blockinfo;
+	gfx_sprite_t *srcsprite;
+	/* Setup draw area */
+	tempblock_inv->width = tempblock_inv->height = 16;
+	fn_FillSprite(tempblock_inv,TRANSPARENT_COLOR);
+	/* Grab properties of block in question */
+	blockinfo = &blockobject_list[inventory[invidx]];
+	if (!(srcsprite = blockinfo->sprite)) return;  //Cancel on NULL sprites
+	tempblock_scratch->height = tempblock_scratch->width = 16;
+	if ((srcsprite->width > 16) && (srcsprite->width > srcsprite->height)) {
+		/*Resize wrt width only if width is more than 16 AND more than height */
+		/* w/h=16/H to 16*h/w=H */
+		nh = ((unsigned int)srcsprite->height * 16)/srcsprite->width;
+		tempblock_scratch->height = nh;
+		gfx_ScaleSprite(srcsprite,tempblock_scratch);
+		srcsprite = tempblock_scratch; //set pointer to scratch to unify writeback
+	} else if (srcsprite->height > 16) {
+		/* Otherwise resize wrt height. Test against width and height unnecessary */
+		/* w/h = W/16 to 16*w/h=W */
+		nw = ((unsigned int)srcsprite->width * 16)/srcsprite->height;
+		tempblock_scratch->width = nw;
+		gfx_ScaleSprite(srcsprite,tempblock_scratch);
+		srcsprite = tempblock_scratch; //set pointer to scratch to unify writeback
+	} else;
+	//Use tempblock_inv to draw the sprite after centering it.
+	//... but for now, just blind copy it.
+	memcpy(tempblock_inv,tempblock_scratch,tempblock_scratch->width*tempblock_scratch->height+2);
+	/* Paint sprite to currently chosen color, then render it */
+	fn_PaintSprite(tempblock_inv,curcolor);
+	ny = smallinv_y_lut[pos&3];
+	nx = 8;
+	gfx_TransparentSprite_NoClip(tempblock_inv,nx,ny);
+	//Print other stats according to the diagram
+	
+	
+	
+	return;
+}
+
+void drawInventory(void) {
+	uint8_t i,y,idx;
+	int x;
+	/* Set background */
+	gfx_SetColor(COLOR_GRAY|COLOR_LIGHTER);
+	gfx_FillRectangle_NoClip(0+12,0,64-24,164); //full bar
+	gfx_SetColor(COLOR_GRAY|COLOR_LIGHT);
+	gfx_FillRectangle_NoClip(0,58,64,48); //cur select
+	/* Draw surrounding inventory objects */
+	drawSmallInvBox(2,idx = getPrevInvIndex(curindex));
+	drawSmallInvBox(1,getPrevInvIndex(idx));
+	drawSmallInvBox(3,idx = getNextInvIndex(curindex));
+	drawSmallInvBox(4,getNextInvIndex(idx));
+	/* Draw currently selected inventory object */
+	
+	
+	return;
+}
+
+uint8_t getPrevInvIndex(uint8_t cidx) {
+	uint8_t i=0;
+	do {
+		--cidx;
+		if (inventory[cidx]) break;
+		++i;
+	} while (i);
+	return cidx;
+}
+uint8_t getNextInvIndex(uint8_t cidx) {
+	uint8_t i=0;
+	do {
+		++cidx;
+		if (inventory[cidx]) break;
+		++i;
+	} while (i);
+	return cidx;
+}
+
+
+
 
 void waitanykey(void) {
 	keywait();            //wait until all keys are released
@@ -183,13 +273,6 @@ void waitanykey(void) {
 void keywait(void) {
 	while (kb_AnyKey());  //wait until all keys are released
 }
-
-
-
-
-
-
-
 
 void error(char *msg) {
 	gfx_End();

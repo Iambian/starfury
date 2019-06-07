@@ -1,6 +1,7 @@
 XDEF _fn_DrawNestedSprite
 XDEF _fn_FillSprite
 XDEF _fn_Setup_Palette
+XDEF _fn_PaintSprite
 
 .ASSUME ADL=1
 
@@ -109,7 +110,38 @@ setupPaletteLoop:
 	JR NZ,setupPaletteLoop
 	RET
 
-
+;in:	arg0=spriteAdr, arg1=color
+;       +3              +6        
+_fn_PaintSprite:
+	POP	BC  ;RETURN ADDRESS
+	POP	HL  ;SPRITE ADDRESS
+	POP DE  ;PAINT WITH THIS COLOR (E)
+	SET	6,E
+	SET	7,E ;SET INTENSITY BITS AS WE ARE AND'ING TO THE WHITE COLOR TO UNSET.
+	PUSH DE
+	PUSH HL
+	PUSH BC ;REWIND STACK
+	LD	C,(HL)
+	INC	HL
+	LD	B,(HL)
+	INC	HL
+	MLT	BC  ;W*H = SIZE TO COPY WITH
+paintSpriteLoop:
+	LD	A,(HL)
+	OR	A,11000000b
+	INC	A   ;Looking for code 00111111b. w/ prev op, will set Z if this is so
+	JR	NZ,paintSpriteSkip
+	LD	A,(HL)
+	AND	E
+	LD	(HL),A
+paintSpriteSkip:
+	DEC	BC
+	LD	A,C
+	OR	A,B
+	JR	NZ,paintSpriteLoop
+	RET
+	
+	
 
 
 
