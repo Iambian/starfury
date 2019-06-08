@@ -78,9 +78,9 @@ void main(void) {
 	
 	/* INITIALIZE DEBUG LOGIC */
 	inventory = malloc(256);
-	for (i=2;i<6;i++) inventory[i] = 5;  //skip cmd unit 1 for testing
+	for (i=2;i<20;i++) inventory[i] = 5;  //skip cmd unit 1 for testing
 	initGridArea(3);  //max size
-	dbg_sprintf(dbgout,"Data output %i: ",blockobject_list[3].w);
+	curindex = getNextInvIndex(getPrevInvIndex(0));
 	
 	/* Start game */
 	while (1) {
@@ -183,14 +183,15 @@ void drawGridArea(void) {
 void drawSmallInvBox(uint8_t pos,uint8_t invidx) {
 	uint8_t i,nw,nh,nx,ny;
 	unsigned int temp;
-	static uint8_t smallinv_y_lut[] = {1+6,1+6+28,1+6+28+1+48+1,1+6+28+1+48+1,+28};
+	static uint8_t smallinv_y_lut[] = {1+6,1+6+28,58+48+1+6,58+48+1+28+6};
 	blockprop_obj *blockinfo;
 	gfx_sprite_t *srcsprite;
 	/* Setup draw area */
 	tempblock_inv->width = tempblock_inv->height = 16;
 	fn_FillSprite(tempblock_inv,TRANSPARENT_COLOR);
 	/* Grab properties of block in question */
-	blockinfo = &blockobject_list[inventory[invidx]];
+	blockinfo = &blockobject_list[invidx];
+	dbg_sprintf(dbgout,"block object %i, address %x\n",invidx,blockinfo->sprite);
 	if (!(srcsprite = blockinfo->sprite)) return;  //Cancel on NULL sprites
 	tempblock_scratch->height = tempblock_scratch->width = 16;
 	if ((srcsprite->width > 16) && (srcsprite->width > srcsprite->height)) {
@@ -207,12 +208,18 @@ void drawSmallInvBox(uint8_t pos,uint8_t invidx) {
 		tempblock_scratch->width = nw;
 		gfx_ScaleSprite(srcsprite,tempblock_scratch);
 		srcsprite = tempblock_scratch; //set pointer to scratch to unify writeback
-	} else;
+	} else {
+		memcpy(tempblock_scratch,srcsprite,srcsprite->width*srcsprite->height+2);
+		if (tempblock_scratch->width > 16 || tempblock_scratch->height>16) {
+			dbg_sprintf(dbgerr,"Sprite copy failure.");
+			return;
+		}
+	}
 	//Use tempblock_inv to draw the sprite after centering it.
 	//... but for now, just blind copy it.
 	memcpy(tempblock_inv,tempblock_scratch,tempblock_scratch->width*tempblock_scratch->height+2);
 	/* Paint sprite to currently chosen color, then render it */
-	fn_PaintSprite(tempblock_inv,curcolor);
+	//fn_PaintSprite(tempblock_inv,curcolor);
 	ny = smallinv_y_lut[pos&3];
 	nx = 8;
 	gfx_TransparentSprite_NoClip(tempblock_inv,nx,ny);
@@ -224,11 +231,14 @@ void drawSmallInvBox(uint8_t pos,uint8_t invidx) {
 }
 
 void drawInventory(void) {
-	uint8_t i,y,idx;
+	uint8_t i,y,idx,nw,nh,nx,ny;
+	unsigned int temp;
+	blockprop_obj *blockinfo;
+	gfx_sprite_t *srcsprite;
 	int x;
 	/* Set background */
 	gfx_SetColor(COLOR_GRAY|COLOR_LIGHTER);
-	gfx_FillRectangle_NoClip(0+12,0,64-24,164); //full bar
+	gfx_FillRectangle_NoClip(0+6,0,64-6-6,164); //full bar
 	gfx_SetColor(COLOR_GRAY|COLOR_LIGHT);
 	gfx_FillRectangle_NoClip(0,58,64,48); //cur select
 	/* Draw surrounding inventory objects */
@@ -237,6 +247,29 @@ void drawInventory(void) {
 	drawSmallInvBox(3,idx = getNextInvIndex(curindex));
 	drawSmallInvBox(4,getNextInvIndex(idx));
 	/* Draw currently selected inventory object */
+	tempblock_scratch->width = tempblock_scratch->height = 32;
+	tempblock_inv->width = tempblock_inv->height = 32;
+	fn_FillSprite(tempblock_scratch,TRANSPARENT_COLOR);
+	blockinfo = &blockobject_list[curindex];
+//	dbg_sprintf(dbgout,"Start: %i\n",curindex);
+	if (!(srcsprite = blockinfo->sprite)) return;  //Do not continue if NULL spr
+//	dbg_sprintf(dbgout,"\nStop.");
+	if (srcsprite->width>16 || srcsprite->height>16) {
+		/* Larger than 16. Keep original sprite dimensions and nest into scratch */
+		memcpy(tempblock_scratch,srcsprite,srcsprite->width*srcsprite->height+2);
+	} else {
+		/* Otherwise, double size to scratch then write into inv */
+		tempblock_scratch->width = srcsprite->width*2;
+		tempblock_scratch->height = srcsprite->height*2;
+		gfx_ScaleSprite(srcsprite,tempblock_scratch);
+	}
+	/* Center tempblock_scratch into tempblock_inv and then color it. */
+	//Or not yet...
+	memcpy(tempblock_inv,tempblock_scratch,tempblock_scratch->width*tempblock_scratch->height+2);
+	fn_PaintSprite(tempblock_inv,COLOR_GREEN);
+	gfx_TransparentSprite_NoClip(tempblock_inv,2,(58+8));
+	//Print other stats according to the diagram
+	
 	
 	
 	return;
