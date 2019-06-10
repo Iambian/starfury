@@ -58,6 +58,20 @@
 #define TEMPBLOCK_MAX_H 32
 
 
+/* DEFINES FOR CONSTANT BLOCK STATS */
+
+#define GRID_LEVEL_1 1
+#define GRID_LEVEL_2 2
+#define GRID_LEVEL_3 3
+//Rotation is done clockwise by 90 degrees apiece. HFLIP is OR'd onto rotation
+#define ROT_0	0
+#define ROT_1	1
+#define ROT_2	2
+#define ROT_3	3
+#define HFLIP	4
+
+
+
 /* ENUMS AND TYPEDEFS */
 
 enum BKT { FILLER=0,COMMAND=1,ENGINE=2,WEAPON=4,SPECIAL=8 };
@@ -78,7 +92,6 @@ typedef struct bullet_t {
 	int temp;
 } bullet_t;
 
-
 /* Used to represent the location of every block on the ship construction grid */
 typedef struct gridblock_obj {
 	uint8_t block_id;    //0 = null, 1-255 = blockID
@@ -87,6 +100,13 @@ typedef struct gridblock_obj {
 	uint8_t color;       //0b00rrggbb r=0-3 red, g=0-3 green, b=0-3 blue
 	uint8_t orientation; //0b00000frr r=0-3 number of rotates, f=is_horiz_flip
 } gridblock_obj;
+
+/* Used to define a collection of blocks that would form up a ship */
+typedef struct blueprint_obj_struct {
+	uint8_t gridlevel;
+	uint8_t numblocks;
+	gridblock_obj *blocks;
+} blueprint_obj;
 
 
 /* Used internally to represent the properties of every block in the game */

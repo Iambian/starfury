@@ -16,6 +16,38 @@
 #include "defs.h"
 #include "gfx/out/blox_gfx.h"
 
+#define BLOCK_CIC1	1
+#define BLOCK_CIC2	2
+#define BLOCK_CIC3	3 
+#define BLOCK_SQR1	4
+#define BLOCK_TRI1	5
+#define BLOCK_SEM1	6
+#define BLOCK_SQR2	7
+#define BLOCK_TRI2	8
+#define BLOCK_SEM2	9
+
+#define BLOCK_SQR3	10
+#define BLOCK_TRI3	11
+#define BLOCK_SEM3	12
+#define BLOCK_WINS	13
+#define BLOCK_WINM	14
+#define BLOCK_WINL	15
+#define BLOCK_ENGS	16
+#define BLOCK_ENGL	17
+#define BLOCK_TUR1	18
+#define BLOCK_TUR2	19
+
+#define BLOCK_TUR3	20
+#define BLOCK_LAS1	21
+#define BLOCK_LAS2	22
+#define BLOCK_LAS3	23
+#define BLOCK_MIS1	24
+#define BLOCK_MIS2	25
+#define BLOCK_MIS3	26
+
+
+
+
 #define GST (gfx_sprite_t*)
 
 blockprop_obj blockobject_list[] = {
@@ -30,10 +62,10 @@ blockprop_obj blockobject_list[] = {
 	{GST lv2square_data  ,FILLER ,   2,1,1,  5,  0,  1,  0,  0,"M Armor"},
 	{GST lv2triangle_data,FILLER ,   2,1,1,  5,  0,  1,  0,  0,"M Triangle"},
 	{GST lv2semi_data    ,FILLER ,   2,1,1,  5,  0,  1,  0,  0,"M Semicircle"},
+/*   sptr                ,type   ,cost,w,h, hp,atk,def,agi,spd,name         */
 	{GST lv3square_data  ,FILLER ,   3,1,1,  9,  0,  2,  0,  0,"L Armor"},
 	{GST lv3triangle_data,FILLER ,   3,1,1,  9,  0,  2,  0,  0,"L Triangle"},
 	{GST lv3semi_data    ,FILLER ,   3,1,1,  9,  0,  2,  0,  0,"L Semicircle"},
-/*   sptr                ,type   ,cost,w,h, hp,atk,def,agi,spd,name         */
 	{GST wingshort_data  ,FILLER ,   1,1,1,  1,  0,  0,  1,  0,"S Wing"},
 	{GST wingmed_data    ,FILLER ,   2,1,2,  1,  0,  0,  2,  0,"M Wing"},
 	{GST winglong_data   ,FILLER ,   3,1,3,  1,  0,  0,  3,  0,"L Wing"},
@@ -41,6 +73,7 @@ blockprop_obj blockobject_list[] = {
 	{GST enginelarge_data,ENGINE ,  30,1,1, 10,  0,  0,  3, 10,"M Engine"},
 	{GST turret1_data    ,WEAPON ,  10,1,1,  0,  1,  0,  0,  0,"S Turret"},
 	{GST turret2_data    ,WEAPON ,  15,1,1,  1,  2,  0,  0,  0,"M Turret"},
+/*   sptr                ,type   ,cost,w,h, hp,atk,def,agi,spd,name         */
 	{GST turret3_data    ,WEAPON ,  20,1,1,  2,  4,  0,  0,  0,"L Turret"},
 	{GST laser1_data     ,WEAPON ,  20,1,1,  0,  1,  0,  0,  0,"S Laser"},
 	{GST laser2_data     ,WEAPON ,  25,1,1,  1,  2,  0,  0,  0,"M Laser"},
@@ -48,17 +81,46 @@ blockprop_obj blockobject_list[] = {
 	{GST missile1_data   ,WEAPON ,  40,2,1,  0,  2,  0,  0,  0,"S Missile"},
 	{GST missile2_data   ,WEAPON ,  50,2,1,  1,  4,  0,  0,  0,"M Missile"},
 	{GST missile3_data   ,WEAPON ,  60,2,1,  2,  8,  0,  0,  0,"L Missile"},
-	
-	
 	{GST NULL,FILLER ,   1,1,1,  2,  0,  0,  0,  0,""},
 	{GST NULL,FILLER ,   1,1,1,  2,  0,  0,  0,  0,""},
 	{GST NULL,FILLER ,   1,1,1,  2,  0,  0,  0,  0,""},
+/*   sptr                ,type   ,cost,w,h, hp,atk,def,agi,spd,name         */
+
+
+
 	
 };
 
+gridblock_obj basic_blueprint_grid[] = {
+//	blockid,    xx,yy,color,            orientation
+	{BLOCK_CIC1, 6, 3,COLOR_GREEN      ,ROT_1      },
+	{BLOCK_SQR1, 2, 2,COLOR_GREEN      ,ROT_0      },
+	{BLOCK_SQR1, 3, 2,COLOR_GREEN      ,ROT_0      },
+	{BLOCK_SQR1, 5, 3,COLOR_GREEN      ,ROT_0      },
+	{BLOCK_SQR1, 4, 3,COLOR_GREEN      ,ROT_0      },
+	{BLOCK_SQR1, 3, 3,COLOR_GREEN      ,ROT_0      },
+	{BLOCK_SQR1, 2, 3,COLOR_GREEN      ,ROT_0      },
+	{BLOCK_SQR1, 5, 4,COLOR_GREEN      ,ROT_0      },
+	{BLOCK_SQR1, 4, 4,COLOR_GREEN      ,ROT_0      },
+	{BLOCK_SQR1, 3, 4,COLOR_GREEN      ,ROT_0      },
+	{BLOCK_SQR1, 2, 4,COLOR_GREEN      ,ROT_0      },
+	{BLOCK_SQR1, 2, 5,COLOR_GREEN      ,ROT_0      },
+	{BLOCK_SQR1, 3, 5,COLOR_GREEN      ,ROT_0      },
+	{BLOCK_WINS, 4, 2,COLOR_GREEN      ,ROT_0      },
+	{BLOCK_WINS, 4, 5,COLOR_GREEN      ,ROT_2|HFLIP},
+	{BLOCK_WINM, 2, 1,COLOR_GREEN      ,ROT_0      },
+	{BLOCK_WINM, 2, 6,COLOR_GREEN      ,ROT_2|HFLIP},
+	{BLOCK_ENGS, 1, 3,COLOR_GREEN      ,ROT_0      },
+	{BLOCK_ENGS, 1, 3,COLOR_GREEN      ,ROT_0      },
+	{BLOCK_TUR1, 5, 2,COLOR_GREEN      ,ROT_0      },
+	{BLOCK_TUR1, 5, 5,COLOR_GREEN      ,ROT_2|HFLIP},
+};
 
-
-
+blueprint_obj basic_blueprint = {
+	GRID_LEVEL_1,
+	sizeof basic_blueprint_grid / sizeof basic_blueprint_grid[0],
+	basic_blueprint_grid,
+};
 
 
 

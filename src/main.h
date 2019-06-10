@@ -5,7 +5,7 @@
 
 
 extern uint8_t *inventory;
-
+extern blueprint_obj *curblueprint;
 
 
 

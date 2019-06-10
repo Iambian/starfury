@@ -45,6 +45,7 @@ void error(char *msg);
 
 /* Put all your globals here */
 uint8_t *inventory; //256 entry wide, indexed by position. Set from save file l8r
+blueprint_obj *curblueprint;
 
 gfx_sprite_t *buildarea;		//Up to 96x96 upscaled by 2 during render.
 gfx_sprite_t *tempblock_grid; 	//Up to 32x32 (4x4 block)
@@ -79,8 +80,9 @@ void main(void) {
 	/* INITIALIZE DEBUG LOGIC */
 	inventory = malloc(256);
 	for (i=2;i<20;i++) inventory[i] = 5;  //skip cmd unit 1 for testing
-	initGridArea(3);  //max size
+	initGridArea(3);  //max size. Sets gridlevel.
 	curindex = getNextInvIndex(getPrevInvIndex(0));
+	curblueprint = &basic_blueprint;
 	
 	/* Start game */
 	while (1) {
@@ -88,6 +90,8 @@ void main(void) {
 		kd = kb_Data[7];
 		kc = kb_Data[1];
 		if (kc&kb_Mode) { keywait(); break; }
+		if (kd&kb_Down) { curindex = getNextInvIndex(curindex); keywait(); }
+		if (kd&kb_Up)   { curindex = getPrevInvIndex(curindex); keywait(); }
 		
 		//maintenance
 		gfx_FillScreen(COLOR_BLACK);
@@ -166,6 +170,8 @@ void initGridArea(uint8_t grlevel) {
 void drawGridArea(void) {
 	int sx,tx;
 	uint8_t offset,sy,ty,cols,gridy,gridx,limit;
+	uint8_t xoff,yoff,i,orientation,spriteid;
+	gfx_sprite_t *srcsprite;
 	offset = 32-((gridlevel-1)<<4);
 	sx = 64+6+offset;
 	sy = 24+offset;
@@ -174,6 +180,38 @@ void drawGridArea(void) {
 	for (gridy=0;gridy<limit;gridy++) {
 		for (gridx=0;gridx<limit;gridx++) {
 			gfx_Rectangle_NoClip(sx+(gridx*16),sy+(gridy*16),16,16);
+		}
+	}
+	if (curblueprint) {
+		xoff = yoff = gridlevel-curblueprint->gridlevel;
+		for (i=curblueprint->numblocks;i;i--) {
+			orientation = curblueprint->blocks[i].orientation;
+			spriteid = curblueprint->blocks[i].block_id;
+			srcsprite = blockobject_list[spriteid].sprite;
+			switch (orientation&3) {
+				case ROT_0:
+					memcpy(tempblock_scratch,srcsprite,34);
+					break;
+				case ROT_1:
+					gfx_RotateSpriteC(srcsprite,tempblock_scratch);
+					break;
+				case ROT_2:
+					gfx_RotateSpriteHalf(srcsprite,tempblock_scratch);
+					break;
+				case ROT_3:
+					gfx_RotateSpriteCC(srcsprite,tempblock_scratch);
+					break;
+				default: //Can't happen. There's only four possible values.
+					break;
+			}
+			if (orientation&HFLIP) {
+				gfx_FlipSpriteX(tempblock_scratch,tempblock_grid);
+			} else {
+				memcpy(tempblock_grid,tempblock_scratch,34);
+			}
+			gridx = curblueprint->blocks[i].x-xoff;
+			gridy = curblueprint->blocks[i].y-yoff;
+			fn_DrawNestedSprite(tempblock_grid,buildarea,8*gridx,8*gridy);
 		}
 	}
 	gfx_ScaledTransparentSprite_NoClip(buildarea,sx,sy,2,2);
@@ -217,7 +255,11 @@ void drawSmallInvBox(uint8_t pos,uint8_t invidx) {
 	}
 	//Use tempblock_inv to draw the sprite after centering it.
 	//... but for now, just blind copy it.
-	memcpy(tempblock_inv,tempblock_scratch,tempblock_scratch->width*tempblock_scratch->height+2);
+	fn_FillSprite(tempblock_inv,TRANSPARENT_COLOR);
+	nx = (16-tempblock_scratch->width)/2;
+	ny = (16-tempblock_scratch->height)/2;
+	fn_DrawNestedSprite(tempblock_scratch,tempblock_inv,nx,ny);
+	//memcpy(tempblock_inv,tempblock_scratch,tempblock_scratch->width*tempblock_scratch->height+2);
 	/* Paint sprite to currently chosen color, then render it */
 	//fn_PaintSprite(tempblock_inv,curcolor);
 	ny = smallinv_y_lut[pos&3];
@@ -242,10 +284,10 @@ void drawInventory(void) {
 	gfx_SetColor(COLOR_GRAY|COLOR_LIGHT);
 	gfx_FillRectangle_NoClip(0,58,64,48); //cur select
 	/* Draw surrounding inventory objects */
-	drawSmallInvBox(2,idx = getPrevInvIndex(curindex));
-	drawSmallInvBox(1,getPrevInvIndex(idx));
-	drawSmallInvBox(3,idx = getNextInvIndex(curindex));
-	drawSmallInvBox(4,getNextInvIndex(idx));
+	drawSmallInvBox(1,idx = getPrevInvIndex(curindex));
+	drawSmallInvBox(0,getPrevInvIndex(idx));
+	drawSmallInvBox(2,idx = getNextInvIndex(curindex));
+	drawSmallInvBox(3,getNextInvIndex(idx));
 	/* Draw currently selected inventory object */
 	tempblock_scratch->width = tempblock_scratch->height = 32;
 	tempblock_inv->width = tempblock_inv->height = 32;
@@ -265,7 +307,11 @@ void drawInventory(void) {
 	}
 	/* Center tempblock_scratch into tempblock_inv and then color it. */
 	//Or not yet...
-	memcpy(tempblock_inv,tempblock_scratch,tempblock_scratch->width*tempblock_scratch->height+2);
+	fn_FillSprite(tempblock_inv,TRANSPARENT_COLOR);
+	nx = (32-tempblock_scratch->width)/2;
+	ny = (32-tempblock_scratch->height)/2;
+	fn_DrawNestedSprite(tempblock_scratch,tempblock_inv,nx,ny);
+	//memcpy(tempblock_inv,tempblock_scratch,tempblock_scratch->width*tempblock_scratch->height+2);
 	fn_PaintSprite(tempblock_inv,COLOR_GREEN);
 	gfx_TransparentSprite_NoClip(tempblock_inv,2,(58+8));
 	//Print other stats according to the diagram
@@ -280,8 +326,7 @@ uint8_t getPrevInvIndex(uint8_t cidx) {
 	do {
 		--cidx;
 		if (inventory[cidx]) break;
-		++i;
-	} while (i);
+	} while (++i);
 	return cidx;
 }
 uint8_t getNextInvIndex(uint8_t cidx) {
@@ -289,8 +334,7 @@ uint8_t getNextInvIndex(uint8_t cidx) {
 	do {
 		++cidx;
 		if (inventory[cidx]) break;
-		++i;
-	} while (i);
+	} while (++i);
 	return cidx;
 }
 
