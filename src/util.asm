@@ -31,6 +31,7 @@ _fn_DrawNestedSprite:
 	LD	C,(HL)    ;BC = width of smallsprite
 	INC	HL
 	LD	A,(HL)    ;A = height of smallsprite
+	INC	HL
 	;HL=smolsprt (src), DE=bigsprt (dest), BC=bytesInRow, A=height
 drawNestedSpriteLoop:
 	PUSH BC
@@ -135,14 +136,13 @@ paintSpriteLoop:
 	AND	E
 	LD	(HL),A
 paintSpriteSkip:
+	INC	HL
 	DEC	BC
 	LD	A,C
 	OR	A,B
 	JR	NZ,paintSpriteLoop
 	RET
 	
-	
-
 
 
 
