@@ -124,8 +124,18 @@ blueprint_obj basic_blueprint = {
 
 
 
-
-
+/*	Up to 8 built-in blueprints can be used. See enum BLPT for bitmasks and
+	positions that it indicates for each. Where unused, use basic_blueprint */
+blueprint_obj *builtin_blueprints[] = {
+	&basic_blueprint,
+	&basic_blueprint,
+	&basic_blueprint,
+	&basic_blueprint,
+	&basic_blueprint,
+	&basic_blueprint,
+	&basic_blueprint,
+	&basic_blueprint,
+};
 
 
 

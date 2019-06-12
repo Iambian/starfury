@@ -79,7 +79,8 @@
 /* ENUMS AND TYPEDEFS */
 
 enum BKT { FILLER=0,COMMAND=1,ENGINE=2,WEAPON=4,SPECIAL=8 };
-enum DIR { UP=0,UPRIGHT,RIGHT,DOWNRIGHT,DOWN,DOWNLEFT,LEFT,UPLEFT};
+enum DIR { UP=0,UPRIGHT,RIGHT,DOWNRIGHT,DOWN,DOWNLEFT,LEFT,UPLEFT };
+enum BLPT { BP_BASIC=1,BP_INTERMEDIATE=2,BP_ADVANCED=4,BP_EXTRA=8 };
 
 typedef union fp16_8 {
 	int fp;
@@ -97,7 +98,7 @@ typedef struct bullet_t {
 } bullet_t;
 
 /* Used to represent the location of every block on the ship construction grid */
-typedef struct gridblock_obj {
+typedef struct gridblock_obj_struct {
 	uint8_t block_id;    //0 = null, 1-255 = blockID
 	uint8_t x;           //0-11 X position on blockgrid
 	uint8_t y;           //0-11 Y position on blockgrid

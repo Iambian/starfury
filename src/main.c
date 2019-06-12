@@ -39,6 +39,7 @@ void drawInventory(void);
 void drawPreview(void);
 uint8_t getPrevInvIndex(uint8_t cidx);
 uint8_t getNextInvIndex(uint8_t cidx);
+void setMinimalInventory(void);  //Edits inventory to make all owned blueprints buildable
 
 void keywait(void);
 void waitanykey(void);
@@ -48,6 +49,9 @@ void error(char *msg);
 uint8_t *inventory; //256 entry wide, indexed by position. Set from save file l8r
 blueprint_obj *curblueprint;
 
+blueprint_obj temp_blueprint;
+gridblock_obj *temp_blueprint_grid;
+
 gfx_sprite_t *buildarea;		//Up to 96x96 upscaled by 2 during render.
 gfx_sprite_t *tempblock_grid; 	//Up to 32x32 (4x4 block)
 gfx_sprite_t *tempblock_inv;    //Up to 32x32 (4x4 block)
@@ -55,9 +59,15 @@ gfx_sprite_t *tempblock_scratch;	//Up to 48x48 (4x4 block)
 uint8_t gridlevel;        //Allowed values 1,2,3. 0 is ignored
 uint8_t curcolor;         //Currently selected color (keep intensity 0)
 uint8_t curindex;         //Index of currently selected object
+uint8_t cursorx;		//- If these two are greater than 11, assume that	
+uint8_t cursory;		//- the cursor is focused on the inventory bar
 
-
-
+typedef struct gamedata_struct {
+	uint8_t blueprints_owned;  //A bit mask
+	uint8_t temp;
+	
+} gamedata_t;
+gamedata_t gamedata;
 
 
 void main(void) {
@@ -71,19 +81,26 @@ void main(void) {
 	gfx_SetTransparentColor(TRANSPARENT_COLOR);
 	/* Load save file */
 	
-	/* Insert game logic here */
+	/* Initialize game defaults */
+	cursorx = cursory = -1;
 	curcolor = DEFAULT_COLOR;
 	buildarea = NULL; /*Unsure if this is BSS. Added to ensure value if not */
 	tempblock_grid = gfx_MallocSprite(TEMPBLOCK_MAX_W,TEMPBLOCK_MAX_H);
 	tempblock_inv  = gfx_MallocSprite(TEMPBLOCK_MAX_W,TEMPBLOCK_MAX_H);
 	tempblock_scratch = gfx_MallocSprite(PREVIEWBLOCK_MAX_W,PREVIEWBLOCK_MAX_H);
+	//These temps are used during editing. Never edit a built-in.
+	temp_blueprint_grid = malloc((sizeof basic_blueprint.blocks[0])*256);
+	temp_blueprint.blocks = temp_blueprint_grid;
+	gamedata.blueprints_owned = BP_BASIC;
+	
 	
 	/* INITIALIZE DEBUG LOGIC */
 	inventory = malloc(256);
+	curblueprint = &basic_blueprint;
 	for (i=2;i<20;i++) inventory[i] = 5;  //skip cmd unit 1 for testing
+	setMinimalInventory();
 	initGridArea(3);  //max size. Sets gridlevel.
 	curindex = getNextInvIndex(getPrevInvIndex(0));
-	curblueprint = &basic_blueprint;
 	
 	/* Start game */
 	while (1) {
@@ -247,7 +264,7 @@ void drawSmallInvBox(uint8_t pos,uint8_t invidx) {
 	fn_FillSprite(tempblock_inv,TRANSPARENT_COLOR);
 	/* Grab properties of block in question */
 	blockinfo = &blockobject_list[invidx];
-	dbg_sprintf(dbgout,"block object %i, address %x\n",invidx,blockinfo->sprite);
+	//dbg_sprintf(dbgout,"block object %i, address %x\n",invidx,blockinfo->sprite);
 	if (!(srcsprite = blockinfo->sprite)) return;  //Cancel on NULL sprites
 	tempblock_scratch->height = tempblock_scratch->width = 16;
 	if ((srcsprite->width > 16) && (srcsprite->width > srcsprite->height)) {
@@ -354,6 +371,32 @@ void drawPreview(void) {
 
 
 
+void setMinimalInventory(void) {
+	uint8_t i;
+	uint8_t cblock,blockcount;
+	uint8_t k;
+	blueprint_obj *tbp;
+	gridblock_obj *tgbo;
+	//Iterate over all possible built-in blueprints that may be owned
+	for (i=0;i<8;i++) {
+		if ((gamedata.blueprints_owned>>i)&1) {
+			tbp = builtin_blueprints[i];
+			tgbo = tbp->blocks;
+			//Iterate over the entire inventory
+			for (cblock=1;cblock<255;cblock++) {
+				blockcount = 0;
+				//Iterate over the blueprint grid to get number of cblock in it.
+				for (k=0;k<(tbp->numblocks);k++) {
+					if (tgbo[k].block_id == cblock) blockcount++;
+				}
+				//if (blockcount) dbg_sprintf(dbgout,"Block %i, numbering %i\n",cblock,blockcount);
+				//Then set inventory to what we found if there wasn't enough.
+				if (inventory[cblock]<blockcount) inventory[cblock]=blockcount;
+			}
+		}
+	}
+}
+
 uint8_t getPrevInvIndex(uint8_t cidx) {
 	uint8_t i=0;
 	do {
@@ -370,9 +413,6 @@ uint8_t getNextInvIndex(uint8_t cidx) {
 	} while (++i);
 	return cidx;
 }
-
-
-
 
 void waitanykey(void) {
 	keywait();            //wait until all keys are released
