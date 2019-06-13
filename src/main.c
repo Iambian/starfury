@@ -30,6 +30,7 @@
 #include "defs.h"
 #include "bdata.h"
 #include "util.h"
+#include "gfx/out/gui_gfx.h"
 
 /* Put your function prototypes here */
 void setup_palette(void);
@@ -45,6 +46,7 @@ void drawAndSetupTextBox(int x, uint8_t y, uint8_t w, uint8_t h, uint8_t bgcolor
 void setMinimalInventory(void);  //Edits inventory to make all owned blueprints buildable
 uint8_t getPrevInvIndex(uint8_t cidx);
 uint8_t getNextInvIndex(uint8_t cidx);
+void drawSpriteAsText(gfx_sprite_t *sprite);
 
 void keywait(void);
 void waitanykey(void);
@@ -379,10 +381,13 @@ void drawPreview(void) {
 	gfx_RotatedScaledTransparentSprite_NoClip(buildarea,nx,ny,0,32);
 }
 
+
+
 void drawCurSelBar(void) {
 	uint8_t i,blocktype,y,w,cofg,cobg;
 	int x;
 	char *s;
+	gfx_sprite_t *spr;
 	gridblock_obj *tgbo;
 	blockprop_obj *tbpo;
 	
@@ -414,9 +419,9 @@ void drawCurSelBar(void) {
 		gfx_FillRectangle_NoClip(0,(164+64-12),(320-64),12);
 	} else {
 		tbpo = &blockobject_list[blocktype];
-		gfx_FillRectangle_NoClip(0,(164+64-12),(64+14),12);
+		gfx_FillRectangle_NoClip(0,(164+64-12),(64+14+8),12);
 		//Setup x,y,w and then draw blocktype
-		x = 64+7+7; y = 164+64-12; w = 36;
+		x = 64+7+7+8; y = 164+64-12; w = 36;
 		gfx_SetTextFGColor(COLOR_WHITE|COLOR_LIGHTER);
 		gfx_PrintStringXY(tbpo->name,2,(y+2));
 		drawAndSetupTextBox(x,y,w,12,COLOR_GRAY,COLOR_WHITE|COLOR_LIGHTER);
@@ -433,39 +438,45 @@ void drawCurSelBar(void) {
 		}
 		gfx_PrintString(s);
 		//Draw WT XXX (or PW XXX if a command module)
-		w = 46;
+		w = (46-8);
 		if (tbpo->type == COMMAND) {
-			s = "PW "; cofg = COLOR_YELLOW; cobg = COLOR_BLUE;
+			spr = (gfx_sprite_t*)spr_pwr_data; cofg = COLOR_YELLOW; cobg = COLOR_BLUE;
 		} else {
-			s = "WT "; cofg = COLOR_YELLOW; cobg = COLOR_BLACK;
+			spr = (gfx_sprite_t*)spr_wt_data; cofg = COLOR_YELLOW; cobg = COLOR_BLACK;
 		}
 		drawAndSetupTextBox(x,y,w,12,cofg,cobg);
 		x += w;
-		gfx_PrintString(s);
+		drawSpriteAsText(spr);
 		gfx_PrintUInt(tbpo->cost,3);
-		//Draw HP XXX
-		//w = 46;
+		/*Draw HP XXX*/
+		w = (46-8);
 		drawAndSetupTextBox(x,y,w,12,COLOR_GREEN,COLOR_BLACK);
 		x += w;
-		gfx_PrintString("HP ");
+		drawSpriteAsText((gfx_sprite_t*)spr_hp_data);
 		gfx_PrintUInt(tbpo->hp,3);
-		//Draw DF XX
-		w = 38;
+		/*Draw AT XX*/
+		w = (38-8);
+		drawAndSetupTextBox(x,y,w,12,COLOR_WHITE,COLOR_BLACK);
+		x += w;
+		drawSpriteAsText((gfx_sprite_t*)spr_atk_data);
+		gfx_PrintUInt(tbpo->atk,2);
+		/*Draw DF XX*/
+		w = (38-8);
 		drawAndSetupTextBox(x,y,w,12,COLOR_BLACK,COLOR_WHITE|COLOR_LIGHTER);
 		x += w;
-		gfx_PrintString("DF ");
+		drawSpriteAsText((gfx_sprite_t*)spr_def_data);
 		gfx_PrintUInt(tbpo->def,2);
-		//Draw SP XX
-		//w = 38;
+		/*Draw SP XX*/
+		w = (38-8);
 		drawAndSetupTextBox(x,y,w,12,COLOR_RED,COLOR_WHITE|COLOR_LIGHTER);
 		x += w;
-		gfx_PrintString("SP ");
+		drawSpriteAsText((gfx_sprite_t*)spr_spd_data);
 		gfx_PrintUInt(tbpo->spd,2);
-		//Draw AG XX
-		//w = 38;
+		/*Draw AG XX*/
+		w = (38-8);
 		drawAndSetupTextBox(x,y,w,12,COLOR_BLUE,COLOR_WHITE|COLOR_LIGHTER);
 		x += w;
-		gfx_PrintString("AG ");
+		drawSpriteAsText((gfx_sprite_t*)spr_agl_data);
 		gfx_PrintUInt(tbpo->agi,2);
 	}
 }
@@ -565,9 +576,6 @@ void drawRightBar(void) {
 		gfx_PrintUInt(total_agi,3);
 		//y += 22; y2 += 22;
 	}
-	
-	
-	
 }
 
 
@@ -637,6 +645,15 @@ uint8_t getNextInvIndex(uint8_t cidx) {
 		if (inventory[cidx]) break;
 	} while (++i);
 	return cidx;
+}
+
+void drawSpriteAsText(gfx_sprite_t *sprite) {
+	uint8_t y;
+	int x;
+	x = gfx_GetTextX();
+	y = gfx_GetTextY();
+	gfx_TransparentSprite_NoClip(sprite,x,y);
+	gfx_SetTextXY(x+sprite->width+2,y);
 }
 
 
