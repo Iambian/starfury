@@ -39,6 +39,7 @@ void drawInventory(void);
 void drawPreview(void);
 void drawCurSelBar(void);
 void drawPowerLimit(void);
+void drawRightBar(void);
 
 void drawAndSetupTextBox(int x, uint8_t y, uint8_t w, uint8_t h, uint8_t bgcolor, uint8_t fgcolor);
 void setMinimalInventory(void);  //Edits inventory to make all owned blueprints buildable
@@ -139,8 +140,7 @@ void main(void) {
 		//Limit field
 		drawPowerLimit();
 		//color and stats field
-		gfx_SetColor(COLOR_GRAY|COLOR_DARKER);
-		gfx_FillRectangle_NoClip((64+6+192+6),24,48,192);
+		drawRightBar();
 		
 		gfx_BlitBuffer();
 		
@@ -502,6 +502,75 @@ void drawPowerLimit(void) {
 	gfx_PrintChar('/');
 	gfx_PrintUInt(energy_total,3);
 }
+
+void drawRightBar(void) {
+	uint8_t i,gridx,gridy,y,y2;
+	int total_hp,total_atk,total_def,total_spd,total_agi;
+	int x;
+	gridblock_obj *tgbo;
+	blockprop_obj *tbpo;
+	
+	gfx_SetColor(COLOR_GRAY|COLOR_DARKER);
+	gfx_FillRectangle_NoClip((64+6+192+6),24,48,192);
+	if ((edit_status&(COLOR_SELECT|PAINTER_MODE))) {
+		//Generate color palette
+		for (i=gridy=0;gridy<16;++gridy) {
+			for (gridx=0;gridx<4;++gridx,++i) {
+				gfx_SetColor(i);
+				gfx_FillRectangle_NoClip((64+6+192+6+1)+(12*gridx),(24+1)+(12*gridy),10,10);
+			}
+		}
+	} else {
+		//Show ship's total status
+		total_hp=total_atk=total_def=total_spd=total_agi=0;
+		tgbo = curblueprint->blocks;
+		for (i=0;i<curblueprint->numblocks;i++) {
+			tbpo = &blockobject_list[tgbo[i].block_id];
+			total_hp  += tbpo->hp;
+			total_atk += tbpo->atk;
+			total_def  += tbpo->def;
+			total_spd  += tbpo->spd;
+			total_agi  += tbpo->agi;
+		}
+		x = (64+6+192+6-2); y = 24+41; y2 = y+12;
+		
+		//Print HP
+		drawAndSetupTextBox(x,y,52,22,COLOR_GREEN,COLOR_BLACK);
+		gfx_PrintString("HT  PTS");
+		gfx_SetTextXY(x+10,y2);
+		gfx_PrintUInt(total_hp,4);
+		y += 22; y2 += 22;
+		//Print ATTACK
+		drawAndSetupTextBox(x,y,52,22,COLOR_WHITE,COLOR_BLACK);
+		gfx_PrintString("ATTACK");
+		gfx_SetTextXY(x+14,y2);
+		gfx_PrintUInt(total_atk,3);
+		y += 22; y2 += 22;
+		//Print ARMOR
+		drawAndSetupTextBox(x,y,52,22,COLOR_BLACK,COLOR_WHITE);
+		gfx_PrintString("ARMOR ");
+		gfx_SetTextXY(x+14,y2);
+		gfx_PrintUInt(total_def,3);
+		y += 22; y2 += 22;
+		//Print SPEED
+		drawAndSetupTextBox(x,y,52,22,COLOR_RED,COLOR_WHITE);
+		gfx_PrintString("SPEED");
+		gfx_SetTextXY(x+14,y2);
+		gfx_PrintUInt(total_spd,3);
+		y += 22; y2 += 22;
+		//Print AGILITY
+		drawAndSetupTextBox(x,y,52,22,COLOR_BLUE,COLOR_WHITE);
+		gfx_PrintString("AGILTY");
+		gfx_SetTextXY(x+14,y2);
+		gfx_PrintUInt(total_agi,3);
+		//y += 22; y2 += 22;
+	}
+	
+	
+	
+}
+
+
 
 
 void setMinimalInventory(void) {
