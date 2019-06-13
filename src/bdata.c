@@ -53,9 +53,9 @@
 blockprop_obj blockobject_list[] = {
 /*   sptr                ,type   ,cost,w,h, hp,atk,def,agi,spd,name         */
 	{GST NULL            ,FILLER , 255,1,1,255,255,255,255,255,"Empty block"},
-	{GST lv1cic_data     ,COMMAND,  40,2,2, 20,  1,  0,  0,  0,"S Cockpit"},
-	{GST lv2cic_data     ,COMMAND,  60,2,2, 40,  3,  5,  0,  0,"M Cockpit"},
-	{GST lv3cic_data     ,COMMAND,  80,2,2, 60,  7, 10,  0,  0,"L Cockpit"},
+	{GST lv1cic_data     ,COMMAND,  80,2,2, 20,  1,  0,  0,  0,"S Cockpit"},
+	{GST lv2cic_data     ,COMMAND, 120,2,2, 40,  3,  5,  0,  0,"M Cockpit"},
+	{GST lv3cic_data     ,COMMAND, 200,2,2, 60,  7, 10,  0,  0,"L Cockpit"},
 	{GST lv1square_data  ,FILLER ,   1,1,1,  2,  0,  0,  0,  0,"S Armor"},
 	{GST lv1triangle_data,FILLER ,   1,1,1,  2,  0,  0,  0,  0,"S Triangle"},
 	{GST lv1semi_data    ,FILLER ,   1,1,1,  2,  0,  0,  0,  0,"S Semicircle"},

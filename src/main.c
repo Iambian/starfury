@@ -37,9 +37,13 @@ void initGridArea(uint8_t grlevel);
 void drawGridArea(void);
 void drawInventory(void);
 void drawPreview(void);
+void drawCurSelBar(void);
+void drawPowerLimit(void);
+
+void drawAndSetupTextBox(int x, uint8_t y, uint8_t w, uint8_t h, uint8_t bgcolor, uint8_t fgcolor);
+void setMinimalInventory(void);  //Edits inventory to make all owned blueprints buildable
 uint8_t getPrevInvIndex(uint8_t cidx);
 uint8_t getNextInvIndex(uint8_t cidx);
-void setMinimalInventory(void);  //Edits inventory to make all owned blueprints buildable
 
 void keywait(void);
 void waitanykey(void);
@@ -61,6 +65,10 @@ uint8_t curcolor;         //Currently selected color (keep intensity 0)
 uint8_t curindex;         //Index of currently selected object
 uint8_t cursorx;		//- If these two are greater than 11, assume that	
 uint8_t cursory;		//- the cursor is focused on the inventory bar
+uint8_t edit_status;    //Bitfield. See enum ESTAT
+gridblock_obj selected_object;  //X,Y at -1,-1 if obj is in inventory
+uint8_t onhover_offset; //Offset in gridblock_obj arr for on-hover
+uint8_t select_offset;  //Offset in gridblock_obj arr for selected object
 
 typedef struct gamedata_struct {
 	uint8_t blueprints_owned;  //A bit mask
@@ -79,6 +87,8 @@ void main(void) {
 	//setup_palette();
 	fn_Setup_Palette();
 	gfx_SetTransparentColor(TRANSPARENT_COLOR);
+	gfx_SetTextTransparentColor(TRANSPARENT_COLOR);
+	gfx_SetTextBGColor(TRANSPARENT_COLOR);
 	/* Load save file */
 	
 	/* Initialize game defaults */
@@ -121,15 +131,13 @@ void main(void) {
 		gfx_SetColor(COLOR_GRAY|COLOR_LIGHTER);
 		gfx_FillRectangle_NoClip(0,240-12,320,12);
 		//cursel block stats
-		gfx_SetColor(COLOR_DARKGRAY|COLOR_DARKER);
-		gfx_FillRectangle_NoClip(64,(164+64-12),(320-64),12);
+		drawCurSelBar();
 		//ship grid build area
 		drawGridArea();
 //		gfx_SetColor(COLOR_WHITE|COLOR_DARKER);
 //		gfx_FillRectangle_NoClip(64+6,24,192,192);
 		//Limit field
-		gfx_SetColor(COLOR_GRAY|COLOR_LIGHTER);
-		gfx_FillRectangle_NoClip((320-64),0,64,24);
+		drawPowerLimit();
 		//color and stats field
 		gfx_SetColor(COLOR_GRAY|COLOR_DARKER);
 		gfx_FillRectangle_NoClip((64+6+192+6),24,48,192);
@@ -360,15 +368,140 @@ void drawPreview(void) {
 	int nx;
 	/* buildarea is at most 96x96. Must shrink by half and render into 64x64 area */
 	gfx_SetColor(COLOR_BLUE|COLOR_DARKER);
-	gfx_Rectangle_NoClip(0,164,64,64);
+	gfx_Rectangle_NoClip(0,164,64,64-12);
+	gfx_SetColor(COLOR_BLACK);
+	gfx_FillRectangle_NoClip((0+1),(164+1),(64-2),(64-12-2));
 	if ((buildarea->width>96) || !buildarea->width) return;
 	if ((buildarea->height>96) || !buildarea->height) return;
 	//+8 if 96w, +12 if 80w, +16 if 64w. Do: (128-w)/4
 	nx = (128-buildarea->width)/4+0;
-	ny = (128-buildarea->height)/4+164;
+	ny = (((64-12)*2)-buildarea->height)/4+164;
 	gfx_RotatedScaledTransparentSprite_NoClip(buildarea,nx,ny,0,32);
 }
 
+void drawCurSelBar(void) {
+	uint8_t i,blocktype,y,w,cofg,cobg;
+	int x;
+	char *s;
+	gridblock_obj *tgbo;
+	blockprop_obj *tbpo;
+	
+	blocktype = 0;
+	if (edit_status&EDIT_SELECT) {
+		//Show status of the object currently in selection
+		blocktype = selected_object.block_id;
+	} else {
+		//or show status of item under the cursor
+		if ((cursorx|cursory)&(1<<7)) {
+			//If the cursor is over the inventory
+			blocktype = curindex;
+		} else {
+			//or if the cursor is over the grid
+			tgbo = curblueprint->blocks;
+			for (i=0;i<curblueprint->numblocks;i++) {
+				if (cursorx>=tgbo[i].x && cursorx<tgbo[i].x+blockobject_list[tgbo[i].block_id].w) {
+					if (cursory>=tgbo[i].y && cursorx<tgbo[i].y+blockobject_list[tgbo[i].block_id].h) {
+						blocktype = tgbo[i].block_id;
+						break;
+					}
+				}
+			}
+		}
+	}
+	//Move the following inside of if condition once render is verified correct
+	gfx_SetColor(COLOR_DARKGRAY|COLOR_DARKER);
+	if (!blocktype) {
+		gfx_FillRectangle_NoClip(0,(164+64-12),(320-64),12);
+	} else {
+		tbpo = &blockobject_list[blocktype];
+		gfx_FillRectangle_NoClip(0,(164+64-12),(64+14),12);
+		//Setup x,y,w and then draw blocktype
+		x = 64+7+7; y = 164+64-12; w = 36;
+		gfx_SetTextFGColor(COLOR_WHITE|COLOR_LIGHTER);
+		gfx_PrintStringXY(tbpo->name,2,(y+2));
+		drawAndSetupTextBox(x,y,w,12,COLOR_GRAY,COLOR_WHITE|COLOR_LIGHTER);
+		x += w;
+		s = "";
+		switch (tbpo->type) {
+			case FILLER:  s="FILL"; break;
+			case COMMAND: s="COMM"; break;
+			case ENGINE:  s="ENGN"; break;
+			case WEAPON:  s="WEPN"; break;
+			case SPECIAL: s="SPCL"; break;
+			case ENERGYSOURCE: s="PSRC"; break;
+			default: break;
+		}
+		gfx_PrintString(s);
+		//Draw WT XXX (or PW XXX if a command module)
+		w = 46;
+		if (tbpo->type == COMMAND) {
+			s = "PW "; cofg = COLOR_YELLOW; cobg = COLOR_BLUE;
+		} else {
+			s = "WT "; cofg = COLOR_YELLOW; cobg = COLOR_BLACK;
+		}
+		drawAndSetupTextBox(x,y,w,12,cofg,cobg);
+		x += w;
+		gfx_PrintString(s);
+		gfx_PrintUInt(tbpo->cost,3);
+		//Draw HP XXX
+		//w = 46;
+		drawAndSetupTextBox(x,y,w,12,COLOR_GREEN,COLOR_BLACK);
+		x += w;
+		gfx_PrintString("HP ");
+		gfx_PrintUInt(tbpo->hp,3);
+		//Draw DF XX
+		w = 38;
+		drawAndSetupTextBox(x,y,w,12,COLOR_BLACK,COLOR_WHITE|COLOR_LIGHTER);
+		x += w;
+		gfx_PrintString("DF ");
+		gfx_PrintUInt(tbpo->def,2);
+		//Draw SP XX
+		//w = 38;
+		drawAndSetupTextBox(x,y,w,12,COLOR_RED,COLOR_WHITE|COLOR_LIGHTER);
+		x += w;
+		gfx_PrintString("SP ");
+		gfx_PrintUInt(tbpo->spd,2);
+		//Draw AG XX
+		//w = 38;
+		drawAndSetupTextBox(x,y,w,12,COLOR_BLUE,COLOR_WHITE|COLOR_LIGHTER);
+		x += w;
+		gfx_PrintString("AG ");
+		gfx_PrintUInt(tbpo->agi,2);
+	}
+}
+
+void drawPowerLimit(void) {
+	uint8_t i,y,w;
+	int x,energy_used,energy_total;
+	gridblock_obj *tgbo;
+	blockprop_obj *tbpo;
+	
+	drawAndSetupTextBox((320-64),0,64,24,COLOR_YELLOW,COLOR_BLUE);
+	gfx_PrintString(" PWR  LIM");
+	
+	gfx_SetColor(COLOR_GREEN|COLOR_DARKER);
+	gfx_FillRectangle_NoClip((320-63),13,62,10);
+	
+	tgbo = curblueprint->blocks;
+	energy_used = energy_total = 0;
+	for (i=0;i<curblueprint->numblocks;i++) {
+		tbpo = &blockobject_list[tgbo[i].block_id];
+		if (tbpo->type&(COMMAND|ENERGYSOURCE)) {
+			energy_total += tbpo->cost;
+		} else {
+			energy_used += tbpo->cost;
+		}
+	}
+	if (energy_used>energy_total) w=60;
+	else w = (60*energy_used)/energy_total;
+	gfx_SetColor(COLOR_LIME);
+	gfx_FillRectangle_NoClip((320-62),14,w,8);
+	gfx_SetTextFGColor(COLOR_BLACK);
+	gfx_SetTextXY((320-60),14);
+	gfx_PrintUInt(energy_used,3);
+	gfx_PrintChar('/');
+	gfx_PrintUInt(energy_total,3);
+}
 
 
 void setMinimalInventory(void) {
@@ -397,6 +530,29 @@ void setMinimalInventory(void) {
 	}
 }
 
+void drawAndSetupTextBox(int x, uint8_t y, uint8_t w, uint8_t h, uint8_t bgcolor, uint8_t fgcolor) {
+	uint8_t i,border_color_outer,border_color_inner,fill_color;
+	if ((fgcolor&COLOR_DARKER) == COLOR_WHITE) {
+		border_color_outer = bgcolor|COLOR_LIGHTER;
+		border_color_inner = bgcolor|COLOR_LIGHT;
+		fill_color = bgcolor|COLOR_DARKER;
+	} else {
+		border_color_outer = bgcolor|COLOR_DARKER;
+		border_color_inner = bgcolor|COLOR_DARK;
+		fill_color = bgcolor|COLOR_LIGHTER;
+	}
+	gfx_SetColor(border_color_outer);
+	gfx_Rectangle_NoClip(x,y,w,h);
+	++x; ++y; w-=2; h-=2;
+	gfx_SetColor(border_color_inner);
+	gfx_Rectangle_NoClip(x,y,w,h);
+	++x; ++y; w-=2; h-=2;
+	gfx_SetColor(fill_color);
+	gfx_FillRectangle_NoClip(x,y,w,h);
+	gfx_SetTextFGColor(fgcolor);
+	gfx_SetTextXY(x,y);
+}
+
 uint8_t getPrevInvIndex(uint8_t cidx) {
 	uint8_t i=0;
 	do {
@@ -414,16 +570,17 @@ uint8_t getNextInvIndex(uint8_t cidx) {
 	return cidx;
 }
 
+
+
+
 void waitanykey(void) {
 	keywait();            //wait until all keys are released
 	while (!kb_AnyKey()); //wait until a key has been pressed.
 	while (kb_AnyKey());  //make sure key is released before advancing
 }	
-
 void keywait(void) {
 	while (kb_AnyKey());  //wait until all keys are released
 }
-
 void error(char *msg) {
 	gfx_End();
 	asm_ClrLCDFull();
