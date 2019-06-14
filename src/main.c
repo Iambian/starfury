@@ -41,6 +41,7 @@ void drawPreview(void);
 void drawCurSelBar(void);
 void drawPowerLimit(void);
 void drawRightBar(void);
+void drawStatusBar(void);
 
 void drawAndSetupTextBox(int x, uint8_t y, uint8_t w, uint8_t h, uint8_t bgcolor, uint8_t fgcolor);
 void setMinimalInventory(void);  //Edits inventory to make all owned blueprints buildable
@@ -72,9 +73,11 @@ uint8_t edit_status;    //Bitfield. See enum ESTAT
 gridblock_obj selected_object;  //X,Y at -1,-1 if obj is in inventory
 uint8_t onhover_offset; //Offset in gridblock_obj arr for on-hover
 uint8_t select_offset;  //Offset in gridblock_obj arr for selected object
+uint8_t update_flags;   //Uses PANEL enum for flag, updates screen selectively
 
 typedef struct gamedata_struct {
 	uint8_t blueprints_owned;  //A bit mask
+	uint8_t default_color;
 	uint8_t temp;
 	
 } gamedata_t;
@@ -105,6 +108,7 @@ void main(void) {
 	temp_blueprint_grid = malloc((sizeof basic_blueprint.blocks[0])*256);
 	temp_blueprint.blocks = temp_blueprint_grid;
 	gamedata.blueprints_owned = BP_BASIC;
+	gamedata.default_color = COLOR_GREEN;
 	
 	
 	/* INITIALIZE DEBUG LOGIC */
@@ -120,9 +124,28 @@ void main(void) {
 		kb_Scan();
 		kd = kb_Data[7];
 		kc = kb_Data[1];
+		
+		
+		/* Handle top row buttons */
+		if (kc&kb_Graph) {
+			if (edit_status&FILE_SELECT) {
+				//You pushed QUIT. What do?
+			} else {
+				if (!(edit_status&EDIT_SELECT)) {
+					//Do not allow switching to color if holding a block
+					edit_status ^= COLOR_SELECT;
+					update_flags |= (PAN_RIGHT|PAN_GRID|PAN_STATUS);
+				}
+			}
+		}
+		
+		/* Handle command buttons */
 		if (kc&kb_Mode) { keywait(); break; }
-		if (kd&kb_Down) { curindex = getNextInvIndex(curindex); keywait(); }
-		if (kd&kb_Up)   { curindex = getPrevInvIndex(curindex); keywait(); }
+		
+		/* Handle directional buttons */
+		if (kd&kb_Down) { curindex = getNextInvIndex(curindex); }
+		if (kd&kb_Up)   { curindex = getPrevInvIndex(curindex); }
+		
 		
 		//maintenance
 		gfx_FillScreen(COLOR_BLACK);
@@ -131,8 +154,7 @@ void main(void) {
 		//preview
 		drawPreview();
 		//status bar
-		gfx_SetColor(COLOR_GRAY|COLOR_LIGHTER);
-		gfx_FillRectangle_NoClip(0,240-12,320,12);
+		drawStatusBar();
 		//cursel block stats
 		drawCurSelBar();
 		//ship grid build area
@@ -145,6 +167,9 @@ void main(void) {
 		drawRightBar();
 		
 		gfx_BlitBuffer();
+		
+		/* Debounce */
+		if (kd|kc) keywait();
 		
 	}
 	/* Preserve save file and exit */
@@ -503,9 +528,13 @@ void drawPowerLimit(void) {
 			energy_used += tbpo->cost;
 		}
 	}
-	if (energy_used>energy_total) w=60;
-	else w = (60*energy_used)/energy_total;
-	gfx_SetColor(COLOR_LIME);
+	if (energy_used>energy_total) {
+		w=60;
+		gfx_SetColor(COLOR_RED);
+	} else {
+		w = (60*energy_used)/energy_total;
+		gfx_SetColor(COLOR_LIME);
+	}
 	gfx_FillRectangle_NoClip((320-62),14,w,8);
 	gfx_SetTextFGColor(COLOR_BLACK);
 	gfx_SetTextXY((320-60),14);
@@ -523,7 +552,7 @@ void drawRightBar(void) {
 	
 	gfx_SetColor(COLOR_GRAY|COLOR_DARKER);
 	gfx_FillRectangle_NoClip((64+6+192+6),24,48,192);
-	if ((edit_status&(COLOR_SELECT|PAINTER_MODE))) {
+	if ((edit_status&COLOR_SELECT)) {
 		//Generate color palette
 		for (i=gridy=0;gridy<16;++gridy) {
 			for (gridx=0;gridx<4;++gridx,++i) {
@@ -578,7 +607,55 @@ void drawRightBar(void) {
 	}
 }
 
+/*	No prototype. Bundle with drawStatusBar() 
+	pos: [0-4]; status: 0=normal, 1=selected, 2=unselectable */
+void drawOption(uint8_t pos,char *s,uint8_t status) {
+	int x,w;
+	uint8_t y;
+	if (status&2) 	gfx_SetTextFGColor(COLOR_DARKGRAY|COLOR_LIGHTER);
+	else			gfx_SetTextFGColor(COLOR_BLACK);
+	x = 64*pos;
+	y = (240-12);
+	if (status&1) {
+		gfx_SetColor(COLOR_MAROON|COLOR_LIGHTER);
+		gfx_FillRectangle_NoClip(x+1,y+1,62,10);
+	}
+	gfx_PrintStringXY(s,x+2+(60-gfx_GetStringWidth(s))/2,y+2);
+	
+}
 
+void drawStatusBar(void) {
+	uint8_t i,y;
+	int x;
+	gfx_SetColor(COLOR_GRAY|COLOR_LIGHTER);
+	gfx_FillRectangle_NoClip(x=0,y=(240-12),320,12);
+	gfx_SetColor(COLOR_DARKGRAY);
+	for (i=0;i<5;i++,x+=64) {
+		gfx_Rectangle_NoClip(x,y,64,12);
+	}
+	drawOption(0,"FILE",!!(edit_status&FILE_SELECT));
+	/* File select overrides all other flags */
+	if (edit_status&FILE_SELECT) {
+		drawOption(1,"SAVE",0);
+		drawOption(2,"RELOAD",0);
+		drawOption(4,"QUIT",!!(edit_status&QUIT_CONFIRM));
+	} else {
+		if (edit_status&COLOR_SELECT) {
+			//Handle color edit display
+			drawOption(4,"PAINTER",1);
+			drawOption(3,"LOCK",!!(curcolor==gamedata.default_color));
+			drawOption(2,"COLR ALL",0);
+			drawOption(1,"GET COLR",0);
+		} else {
+			//Handle move mode. Note: EDIT_SELECT used only if holding a block
+			drawOption(4,"EDITOR",1);
+			if (edit_status&EDIT_SELECT) {
+				drawOption(3,"ROTATE",0);
+				drawOption(2,"FLIP",0);
+			}
+		}
+	}
+}
 
 
 void setMinimalInventory(void) {
