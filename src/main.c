@@ -48,6 +48,8 @@ void setMinimalInventory(void);  //Edits inventory to make all owned blueprints 
 uint8_t getPrevInvIndex(uint8_t cidx);
 uint8_t getNextInvIndex(uint8_t cidx);
 void drawSpriteAsText(gfx_sprite_t *sprite);
+void modifyCursorPos(uint8_t *xpos, uint8_t *ypos, kb_key_t dir, uint8_t xlim, uint8_t ylim);
+void updateGridArea(void);
 
 void keywait(void);
 void waitanykey(void);
@@ -73,7 +75,6 @@ uint8_t edit_status;    //Bitfield. See enum ESTAT
 gridblock_obj selected_object;  //X,Y at -1,-1 if obj is in inventory
 uint8_t onhover_offset; //Offset in gridblock_obj arr for on-hover
 uint8_t select_offset;  //Offset in gridblock_obj arr for selected object
-uint8_t update_flags;   //Uses PANEL enum for flag, updates screen selectively
 
 typedef struct gamedata_struct {
 	uint8_t blueprints_owned;  //A bit mask
@@ -86,8 +87,8 @@ gamedata_t gamedata;
 
 void main(void) {
 	kb_key_t kc,kd;
-	uint8_t i;
-	
+	uint8_t i,update_flags,tx,ty,t;
+
     gfx_Begin(gfx_8bpp);
 	gfx_SetDrawBuffer();
 	//setup_palette();
@@ -118,6 +119,9 @@ void main(void) {
 	setMinimalInventory();
 	initGridArea(3);  //max size. Sets gridlevel.
 	curindex = getNextInvIndex(getPrevInvIndex(0));
+	update_flags = 0xFF;  //Update all initial frame
+	updateGridArea();
+
 	
 	/* Start game */
 	while (1) {
@@ -143,28 +147,87 @@ void main(void) {
 		if (kc&kb_Mode) { keywait(); break; }
 		
 		/* Handle directional buttons */
-		if (kd&kb_Down) { curindex = getNextInvIndex(curindex); }
-		if (kd&kb_Up)   { curindex = getPrevInvIndex(curindex); }
-		
+		if (edit_status&COLOR_SELECT && !(edit_status&NOW_PAINTING)) {
+			//Selecting color palette
+		} else {
+			//Moving around the cursor
+			if ((cursorx|cursory)>127) {
+				//If cursor is in the inventory box
+				if (kd&kb_Down) curindex = getNextInvIndex(curindex);
+				if (kd&kb_Up)   curindex = getPrevInvIndex(curindex);
+				if (kd&(kb_Up|kb_Down)) update_flags |= (PAN_INV|PAN_CURSEL);
+				if (kd&kb_Right) {
+					cursorx = 0;                //keep cursory if possible
+					if (cursory>127) cursory=0; //but reset it if not.
+					update_flags |= PAN_GRID;
+				}
+			} else {
+				//Cursor on the grid
+				if (!cursorx && kd&kb_Left) {
+					cursorx = -1;
+					update_flags |= (PAN_GRID|PAN_CURSEL);
+				} else {
+					if (kd) {
+						if (edit_status&EDIT_SELECT) {
+							tx = blockobject_list[selected_object.block_id].w-1;
+							ty = blockobject_list[selected_object.block_id].h-1;
+							//If C or CC once rotate, flip tx and ty
+							if (selected_object.orientation&1) {
+								t = tx;
+								tx = ty;
+								ty = t;
+							}
+						} else tx = ty = 0;
+						//Use tx and ty to restrict large blocks to grid area
+						modifyCursorPos(&cursorx,&cursory,kd,(6+gridlevel*2)-tx,(6+gridlevel*2)-ty);
+						update_flags |= (PAN_GRID|PAN_CURSEL);
+					}
+				}
+			}
+		}
 		
 		//maintenance
-		gfx_FillScreen(COLOR_BLACK);
+		if (update_flags&PAN_FULLSCREEN) {
+			update_flags &= ~PAN_FULLSCREEN;  //Clear fullscreen bit
+			update_flags |= ~PAN_FULLSCREEN;  //Set all others because dirty.
+			gfx_FillScreen(COLOR_BLACK);
+			/* TODO: No other flags available. Render ship name here */
+		}
 		//inventory bar
-		drawInventory();
-		//preview
-		drawPreview();
-		//status bar
-		drawStatusBar();
-		//cursel block stats
-		drawCurSelBar();
+		if (update_flags&PAN_INV) {
+			update_flags &= ~PAN_INV;
+			drawInventory();
+		}
 		//ship grid build area
-		drawGridArea();
-//		gfx_SetColor(COLOR_WHITE|COLOR_DARKER);
-//		gfx_FillRectangle_NoClip(64+6,24,192,192);
+		if (update_flags&PAN_GRID) {
+			update_flags &= ~PAN_GRID;
+			drawGridArea();
+		}
+		//preview
+		if (update_flags&PAN_PREVIEW) {
+			update_flags &= ~PAN_PREVIEW;
+			drawPreview();
+		}
+		//status bar
+		if (update_flags&PAN_STATUS) {
+			update_flags &= ~PAN_STATUS;
+			drawStatusBar();
+		}
+		//cursel block stats
+		if (update_flags&PAN_CURSEL) {
+			update_flags &= ~PAN_CURSEL;
+			drawCurSelBar();
+		}
 		//Limit field
-		drawPowerLimit();
+		if (update_flags&PAN_LIM) {
+			update_flags &= ~PAN_LIM;
+			drawPowerLimit();
+		}
 		//color and stats field
-		drawRightBar();
+		if (update_flags&PAN_RIGHT) {
+			update_flags &= ~PAN_RIGHT;
+			drawRightBar();
+		}
 		
 		gfx_BlitBuffer();
 		
@@ -229,47 +292,23 @@ void drawGridArea(void) {
 	sy = 24+offset;
 	limit = (gridlevel<<1)+6;  //8,10,12
 	gfx_SetColor(COLOR_GRAY|COLOR_LIGHTER);
+	gfx_Rectangle_NoClip(sx-1,sy-1,limit*16+2,limit*16+2);
 	for (gridy=0;gridy<limit;gridy++) {
 		for (gridx=0;gridx<limit;gridx++) {
 			gfx_Rectangle_NoClip(sx+(gridx*16),sy+(gridy*16),16,16);
 		}
 	}
-	if (curblueprint) {
-		xoff = yoff = gridlevel-curblueprint->gridlevel;
-		for (i=0;i<curblueprint->numblocks;i++) {
-			orientation = curblueprint->blocks[i].orientation;
-			spriteid = curblueprint->blocks[i].block_id;
-			srcsprite = blockobject_list[spriteid].sprite;
-			tempblock_scratch->width = srcsprite->width;
-			tempblock_scratch->height = srcsprite->height;
-			switch (orientation&3) {
-				case ROT_0:
-					memcpy(tempblock_scratch,srcsprite,srcsprite->width*srcsprite->height+2);
-					break;
-				case ROT_1:
-					gfx_RotateSpriteC(srcsprite,tempblock_scratch);
-					break;
-				case ROT_2:
-					gfx_RotateSpriteHalf(srcsprite,tempblock_scratch);
-					break;
-				case ROT_3:
-					gfx_RotateSpriteCC(srcsprite,tempblock_scratch);
-					break;
-				default: //Can't happen. There's only four possible values.
-					break;
-			}
-			if (orientation&HFLIP) {
-				gfx_FlipSpriteY(tempblock_scratch,tempblock_grid);
-			} else {
-				memcpy(tempblock_grid,tempblock_scratch,tempblock_scratch->width*tempblock_scratch->height+2);
-			}
-			gridx = curblueprint->blocks[i].x+xoff;
-			gridy = curblueprint->blocks[i].y+yoff;
-			fn_PaintSprite(tempblock_grid,curblueprint->blocks[i].color);
-			fn_DrawNestedSprite(tempblock_grid,buildarea,8*gridx,8*gridy);
+	
+	gfx_ScaledTransparentSprite_NoClip(buildarea,sx,sy,2,2);
+	if ((cursorx|cursory)<128) {
+		if (edit_status&EDIT_SELECT) {
+			
+		} else {
+			gfx_SetColor(COLOR_MAGENTA|COLOR_LIGHTER);
+			gfx_Rectangle_NoClip(sx+(cursorx*16),sy+(cursory*16),16,16);
+			gfx_Rectangle_NoClip(sx+(cursorx*16)-1,sy+(cursory*16)-1,18,18);
 		}
 	}
-	gfx_ScaledTransparentSprite_NoClip(buildarea,sx,sy,2,2);
 }
 
 //No prototype. used by inv renderer
@@ -287,7 +326,8 @@ void drawInvCount(int nx, uint8_t ny, uint8_t invidx) {
 }
 
 
-//No prototype. pos=[0-3], invidx = index to inventory slot
+/*	No prototype. Bundle with drawInventory()
+	pos=[0-3], invidx = index to inventory slot */
 void drawSmallInvBox(uint8_t pos,uint8_t invidx) {
 	uint8_t i,nw,nh,nx,ny,count;
 	unsigned int temp;
@@ -346,6 +386,7 @@ void drawInventory(void) {
 	blockprop_obj *blockinfo;
 	gfx_sprite_t *srcsprite;
 	int x;
+	char *s;
 	/* Set background */
 	gfx_SetColor(COLOR_GRAY|COLOR_LIGHTER);
 	gfx_FillRectangle_NoClip(0+6,0,64-6-6,164); //full bar
@@ -384,9 +425,9 @@ void drawInventory(void) {
 	//Print other stats according to the diagram
 	drawInvCount(16-6+2,58+8+6,curindex);
 	gfx_SetTextFGColor(COLOR_BLACK);
-	gfx_PrintStringXY(blockobject_list[curindex].name,1,60);
-	
-	
+	s = blockobject_list[curindex].name;
+	gfx_SetTextXY(1,60);
+	for (i=0;s[i]&&i<9;i++) gfx_PrintChar(s[i]);  //Instead of flipping clipping bits around
 	return;
 }
 
@@ -441,7 +482,7 @@ void drawCurSelBar(void) {
 	//Move the following inside of if condition once render is verified correct
 	gfx_SetColor(COLOR_DARKGRAY|COLOR_DARKER);
 	if (!blocktype) {
-		gfx_FillRectangle_NoClip(0,(164+64-12),(320-64),12);
+		gfx_FillRectangle_NoClip(0,(164+64-12),320,12);
 	} else {
 		tbpo = &blockobject_list[blocktype];
 		gfx_FillRectangle_NoClip(0,(164+64-12),(64+14+8),12);
@@ -732,6 +773,51 @@ void drawSpriteAsText(gfx_sprite_t *sprite) {
 	gfx_TransparentSprite_NoClip(sprite,x,y);
 	gfx_SetTextXY(x+sprite->width+2,y);
 }
+
+void updateGridArea(void) {
+	uint8_t i,offset,orientation,blockid,w,h,gx,gy;
+	blueprint_obj *blueprint;
+	gfx_sprite_t *srcsprite;
+	
+	blueprint = curblueprint;
+	fn_FillSprite(buildarea,TRANSPARENT_COLOR);
+	if (!blueprint) return;
+	offset = gridlevel-blueprint->gridlevel;
+	for (i=0;i<blueprint->numblocks;i++) {
+		orientation = blueprint->blocks[i].orientation;
+		srcsprite = blockobject_list[blueprint->blocks[i].block_id].sprite;
+		w = tempblock_scratch->width = srcsprite->width;
+		h = tempblock_scratch->height = srcsprite->height;
+		switch (orientation&3) {
+			case ROT_0: memcpy(tempblock_scratch,srcsprite,w*h+2); break;
+			case ROT_1: gfx_RotateSpriteC(srcsprite,tempblock_scratch); break;
+			case ROT_2: gfx_RotateSpriteHalf(srcsprite,tempblock_scratch); break;
+			case ROT_3: gfx_RotateSpriteCC(srcsprite,tempblock_scratch); break;
+			default: break;
+		}
+		if (orientation&HFLIP) gfx_FlipSpriteY(tempblock_scratch,tempblock_grid);
+		else                   memcpy(tempblock_grid,tempblock_scratch,h*w+2);
+		
+		fn_PaintSprite(tempblock_grid,curblueprint->blocks[i].color);
+		fn_DrawNestedSprite(tempblock_grid,buildarea,(offset+blueprint->blocks[i].x)<<3,(offset+blueprint->blocks[i].y)<<3);
+	}
+}
+
+void modifyCursorPos(uint8_t *xpos, uint8_t *ypos, kb_key_t dir, uint8_t xlim, uint8_t ylim) {
+	if (dir&kb_Down)  *ypos = (*ypos >= ylim-1)? 0 : 1+*ypos;
+	if (dir&kb_Up)    *ypos = (--*ypos >= ylim)? ylim-1 : *ypos;
+	if (dir&kb_Right) *xpos = (*xpos >= xlim-1)? 0 : 1+*xpos;
+	if (dir&kb_Left)  *xpos = (--*xpos >= xlim)? xlim-1 : *xpos;
+	
+}
+
+
+
+
+
+
+
+
 
 
 
