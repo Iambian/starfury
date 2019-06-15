@@ -51,6 +51,8 @@ void drawSpriteAsText(gfx_sprite_t *sprite);
 void modifyCursorPos(uint8_t *xpos, uint8_t *ypos, kb_key_t dir, uint8_t xlim, uint8_t ylim);
 void updateGridArea(void);
 uint8_t checkGridCollision(uint8_t xpos, uint8_t ypos);   //Returns block offset in curblueprint
+void prepareGridItem(gridblock_obj *gbo);
+
 
 void keywait(void);
 void waitanykey(void);
@@ -91,6 +93,7 @@ gamedata_t gamedata;
 void main(void) {
 	kb_key_t kc,kd;
 	uint8_t i,update_flags,tx,ty,t;
+	uint8_t tt;
 
     gfx_Begin(gfx_8bpp);
 	gfx_SetDrawBuffer();
@@ -147,6 +150,53 @@ void main(void) {
 		}
 		
 		/* Handle command buttons */
+		if (kb_Data[6]&kb_Clear) { keywait(); break; }
+		if (kc&kb_2nd) {
+			if (edit_status&COLOR_SELECT) {
+				//Running paint mode
+				if (edit_status&NOW_PAINTING) {
+					//paint a block
+					
+					
+				} else {
+					//select color and open grid cursor movement
+					edit_status |= NOW_PAINTING;
+					update_flags |= PAN_GRID;
+				}
+			} else {
+				//Running edit mode
+				if ((cursorx|cursory)>127) {
+					//Bringing a piece out of inventory. If a piece is already
+					//being held, no worries. it can be safely overwritten
+					tt = t = 0;
+					for (i=0;i<curblueprint->numblocks;i++) {
+						if (curblueprint->blocks[i].block_id == curindex) t++;
+						tt |= blockobject_list[curblueprint->blocks[i].block_id].type;
+					}
+					// Begin placement if enough items left AND
+					// we're not placing more than one command module
+					if ((t<inventory[curindex]) && !((tt&blockobject_list[curindex].type&COMMAND))) {
+						selected_object.block_id = curindex;
+						selected_object.x = selected_object.y = -1;
+						selected_object.color = curcolor;
+						selected_object.orientation = ROT_0;
+						edit_status |= EDIT_SELECT;
+						if (cursory>12) cursory=0;
+						cursorx = 0;
+						update_flags |= (PAN_GRID|PAN_CURSEL|PAN_STATUS);
+					}
+				} else {
+					//Picking up or plopping a piece out on the grid
+						
+						
+						
+					update_flags |= (PAN_GRID|PAN_CURSEL);
+				}
+			}
+		}
+		
+		
+		
 		if (kc&kb_Mode) { keywait(); break; }
 		
 		/* Handle directional buttons */
@@ -291,14 +341,19 @@ void initGridArea(uint8_t grlevel) {
 }
 
 void drawGridArea(void) {
-	int sx,tx;
+	int sx,tx,w,h;
 	uint8_t offset,sy,ty,cols,gridy,gridx,limit;
 	uint8_t xoff,yoff,i,orientation,spriteid;
 	gfx_sprite_t *srcsprite;
+	
 	offset = 32-((gridlevel-1)<<4);
 	sx = 64+6+offset;
 	sy = 24+offset;
 	limit = (gridlevel<<1)+6;  //8,10,12
+//	if (edit_status&EDIT_SELECT) {
+		gfx_SetColor(COLOR_BLACK);
+		gfx_FillRectangle_NoClip(sx,sy,16*limit,16*limit);
+//	}
 	gfx_SetColor(COLOR_GRAY|COLOR_LIGHTER);
 	gfx_Rectangle_NoClip(sx-1,sy-1,limit*16+2,limit*16+2);
 	for (gridy=0;gridy<limit;gridy++) {
@@ -310,13 +365,26 @@ void drawGridArea(void) {
 	gfx_ScaledTransparentSprite_NoClip(buildarea,sx,sy,2,2);
 	if ((cursorx|cursory)<128) {
 		if (edit_status&EDIT_SELECT) {
+			//Prepare and draw sprite
+			prepareGridItem(&selected_object);
 			
+			/* TODO: Change gfx_TransparentSprite to whatever will draw 2x scale stuff */
+			gfx_ScaledTransparentSprite_NoClip(tempblock_grid,sx+(cursorx*16),sy+(cursory*16),2,2);
+			//Set cursor width and height
+			w = blockobject_list[selected_object.block_id].w*16;
+			h = blockobject_list[selected_object.block_id].h*16;
 		} else {
-			gfx_SetColor(COLOR_MAGENTA|COLOR_LIGHTER);
-			gfx_Rectangle_NoClip(sx+(cursorx*16),sy+(cursory*16),16,16);
-			gfx_Rectangle_NoClip(sx+(cursorx*16)-1,sy+(cursory*16)-1,18,18);
+			//Set cursor width and height
+			w = 16; h=16;
 		}
+		gfx_SetColor(COLOR_MAGENTA|COLOR_LIGHTER);
+		gfx_Rectangle_NoClip(sx+(cursorx*16),sy+(cursory*16),w,h);
+		gfx_Rectangle_NoClip(sx+(cursorx*16)-1,sy+(cursory*16)-1,w+2,h+2);
 	}
+	
+	
+	
+	
 }
 
 //No prototype. used by inv renderer
@@ -584,7 +652,7 @@ void drawPowerLimit(void) {
 	gfx_PrintUInt(energy_total,3);
 }
 
-
+/* No prototype. Bundle with drawRightBar */
 void rightBarStats(char *s,uint8_t *y, uint8_t fgcol, uint8_t bgcol, int value) {
 	int x = (64+6+192+6-2);
 	drawAndSetupTextBox(x,*y,54,22,fgcol,bgcol);
@@ -593,7 +661,6 @@ void rightBarStats(char *s,uint8_t *y, uint8_t fgcol, uint8_t bgcol, int value) 
 	gfx_PrintUInt(value,3);
 	*y = 22+*y;
 }
-
 
 void drawRightBar(void) {
 	uint8_t i,gridx,gridy,y;
@@ -776,21 +843,7 @@ void updateGridArea(void) {
 	if (!blueprint) return;
 	offset = gridlevel-blueprint->gridlevel;
 	for (i=0;i<blueprint->numblocks;i++) {
-		orientation = blueprint->blocks[i].orientation;
-		srcsprite = blockobject_list[blueprint->blocks[i].block_id].sprite;
-		w = tempblock_scratch->width = srcsprite->width;
-		h = tempblock_scratch->height = srcsprite->height;
-		switch (orientation&3) {
-			case ROT_0: memcpy(tempblock_scratch,srcsprite,w*h+2); break;
-			case ROT_1: gfx_RotateSpriteC(srcsprite,tempblock_scratch); break;
-			case ROT_2: gfx_RotateSpriteHalf(srcsprite,tempblock_scratch); break;
-			case ROT_3: gfx_RotateSpriteCC(srcsprite,tempblock_scratch); break;
-			default: break;
-		}
-		if (orientation&HFLIP) gfx_FlipSpriteY(tempblock_scratch,tempblock_grid);
-		else                   memcpy(tempblock_grid,tempblock_scratch,h*w+2);
-		
-		fn_PaintSprite(tempblock_grid,curblueprint->blocks[i].color);
+		prepareGridItem(&blueprint->blocks[i]);
 		fn_DrawNestedSprite(tempblock_grid,buildarea,(offset+blueprint->blocks[i].x)<<3,(offset+blueprint->blocks[i].y)<<3);
 	}
 }
@@ -803,9 +856,9 @@ void modifyCursorPos(uint8_t *xpos, uint8_t *ypos, kb_key_t dir, uint8_t xlim, u
 	
 }
 
-/* Returns block offset in curblueprint. 0xFF if item not found  */
+/* Returns block offset of first collision in curblueprint. 0xFF if item not found  */
 uint8_t checkGridCollision(uint8_t xpos, uint8_t ypos) {
-	uint8_t i,offset,limit,w,h,t,x,y;
+	uint8_t i,offset,limit,w,h,t,x,y,sh,sw;
 	gridblock_obj *gridblock;
 	blockprop_obj *blockprop;
 	
@@ -815,6 +868,18 @@ uint8_t checkGridCollision(uint8_t xpos, uint8_t ypos) {
 	limit = 6+(curblueprint->gridlevel*2);
 	if (xpos>=limit || ypos>=limit) return 0xFF;  //outside range
 	
+	if (edit_status&EDIT_SELECT) {
+		blockprop = &blockobject_list[selected_object.block_id];
+		sw = blockprop->w;
+		sh = blockprop->h;
+		if (selected_object.orientation&1) {
+			t = sw;
+			sw = sh;
+			sh = t;
+		}
+	} else {
+		sw = sh = 1;
+	}
 	for (i=0;i<curblueprint->numblocks;i++) {
 		gridblock = &curblueprint->blocks[i];
 		blockprop = &blockobject_list[gridblock->block_id];
@@ -827,16 +892,33 @@ uint8_t checkGridCollision(uint8_t xpos, uint8_t ypos) {
 			w = h;
 			h = t;
 		}
-		if ((xpos>=x) && (xpos<(x+w))) {
-			if ((ypos>=y) && (ypos<(y+h))) {
-				return gridblock->block_id;
-			}
+		if (gfx_CheckRectangleHotspot(xpos,ypos,sw,sh,x,y,w,h)) {
+			return gridblock->block_id;
 		}
 	}
 	return 0xFF;
 }
 
-
+/* Write properly rotated sprite in tempblock_grid  */
+void prepareGridItem(gridblock_obj *gbo) {
+	uint8_t i,w,h;
+	gfx_sprite_t *srcsprite;
+	
+	srcsprite = blockobject_list[gbo->block_id].sprite;
+	
+	w = tempblock_scratch->width = srcsprite->width;
+	h = tempblock_scratch->height = srcsprite->height;
+	switch (gbo->orientation&3) {
+		case ROT_0: memcpy(tempblock_scratch,srcsprite,w*h+2); break;
+		case ROT_1: gfx_RotateSpriteC(srcsprite,tempblock_scratch); break;
+		case ROT_2: gfx_RotateSpriteHalf(srcsprite,tempblock_scratch); break;
+		case ROT_3: gfx_RotateSpriteCC(srcsprite,tempblock_scratch); break;
+		default: break;
+	}
+	if (gbo->orientation&HFLIP) gfx_FlipSpriteY(tempblock_scratch,tempblock_grid);
+	else                        memcpy(tempblock_grid,tempblock_scratch,h*w+2);
+	fn_PaintSprite(tempblock_grid,gbo->color);
+}
 
 
 
