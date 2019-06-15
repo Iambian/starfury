@@ -50,6 +50,7 @@ uint8_t getNextInvIndex(uint8_t cidx);
 void drawSpriteAsText(gfx_sprite_t *sprite);
 void modifyCursorPos(uint8_t *xpos, uint8_t *ypos, kb_key_t dir, uint8_t xlim, uint8_t ylim);
 void updateGridArea(void);
+uint8_t checkGridCollision(uint8_t xpos, uint8_t ypos);   //Returns block offset in curblueprint
 
 void keywait(void);
 void waitanykey(void);
@@ -71,6 +72,8 @@ uint8_t curcolor;         //Currently selected color (keep intensity 0)
 uint8_t curindex;         //Index of currently selected object
 uint8_t cursorx;		//- If these two are greater than 11, assume that	
 uint8_t cursory;		//- the cursor is focused on the inventory bar
+uint8_t paintcursorx;
+uint8_t paintcursory;
 uint8_t edit_status;    //Bitfield. See enum ESTAT
 gridblock_obj selected_object;  //X,Y at -1,-1 if obj is in inventory
 uint8_t onhover_offset; //Offset in gridblock_obj arr for on-hover
@@ -148,7 +151,12 @@ void main(void) {
 		
 		/* Handle directional buttons */
 		if (edit_status&COLOR_SELECT && !(edit_status&NOW_PAINTING)) {
-			//Selecting color palette
+			//Selecting color palette. Bitmask shenanigans follows.
+			if (kd&kb_Down)  curcolor = (curcolor+4)&0x3F;
+			if (kd&kb_Up)    curcolor = (curcolor-4)&0x3F;
+			if (kd&kb_Right) curcolor = ((curcolor+1)&0x03)+(curcolor&0x3C);
+			if (kd&kb_Left)  curcolor = ((curcolor-1)&0x03)+(curcolor&0x3C);
+			update_flags |= (PAN_INV|PAN_RIGHT|PAN_STATUS);
 		} else {
 			//Moving around the cursor
 			if ((cursorx|cursory)>127) {
@@ -159,7 +167,7 @@ void main(void) {
 				if (kd&kb_Right) {
 					cursorx = 0;                //keep cursory if possible
 					if (cursory>127) cursory=0; //but reset it if not.
-					update_flags |= PAN_GRID;
+					update_flags |= (PAN_GRID|PAN_CURSEL);
 				}
 			} else {
 				//Cursor on the grid
@@ -420,7 +428,7 @@ void drawInventory(void) {
 	ny = (32-tempblock_scratch->height)/2;
 	fn_DrawNestedSprite(tempblock_scratch,tempblock_inv,nx,ny);
 	//memcpy(tempblock_inv,tempblock_scratch,tempblock_scratch->width*tempblock_scratch->height+2);
-	fn_PaintSprite(tempblock_inv,COLOR_GREEN);
+	fn_PaintSprite(tempblock_inv,curcolor);
 	gfx_TransparentSprite_NoClip(tempblock_inv,2,(58+8+4));
 	//Print other stats according to the diagram
 	drawInvCount(16-6+2,58+8+6,curindex);
@@ -467,16 +475,8 @@ void drawCurSelBar(void) {
 			//If the cursor is over the inventory
 			blocktype = curindex;
 		} else {
-			//or if the cursor is over the grid
-			tgbo = curblueprint->blocks;
-			for (i=0;i<curblueprint->numblocks;i++) {
-				if (cursorx>=tgbo[i].x && cursorx<tgbo[i].x+blockobject_list[tgbo[i].block_id].w) {
-					if (cursory>=tgbo[i].y && cursorx<tgbo[i].y+blockobject_list[tgbo[i].block_id].h) {
-						blocktype = tgbo[i].block_id;
-						break;
-					}
-				}
-			}
+			blocktype = checkGridCollision(cursorx,cursory);
+			if (blocktype==0xFF) blocktype = 0;
 		}
 	}
 	//Move the following inside of if condition once render is verified correct
@@ -584,8 +584,19 @@ void drawPowerLimit(void) {
 	gfx_PrintUInt(energy_total,3);
 }
 
+
+void rightBarStats(char *s,uint8_t *y, uint8_t fgcol, uint8_t bgcol, int value) {
+	int x = (64+6+192+6-2);
+	drawAndSetupTextBox(x,*y,54,22,fgcol,bgcol);
+	gfx_PrintString(s);
+	gfx_SetTextXY(x+14,12+*y);
+	gfx_PrintUInt(value,3);
+	*y = 22+*y;
+}
+
+
 void drawRightBar(void) {
-	uint8_t i,gridx,gridy,y,y2;
+	uint8_t i,gridx,gridy,y;
 	int total_hp,total_atk,total_def,total_spd,total_agi;
 	int x;
 	gridblock_obj *tgbo;
@@ -595,12 +606,19 @@ void drawRightBar(void) {
 	gfx_FillRectangle_NoClip((64+6+192+6),24,48,192);
 	if ((edit_status&COLOR_SELECT)) {
 		//Generate color palette
+		x = (64+6+192+6+1);
+		y = (24+1);
 		for (i=gridy=0;gridy<16;++gridy) {
 			for (gridx=0;gridx<4;++gridx,++i) {
 				gfx_SetColor(i);
-				gfx_FillRectangle_NoClip((64+6+192+6+1)+(12*gridx),(24+1)+(12*gridy),10,10);
+				gfx_FillRectangle_NoClip(x+(12*gridx),y+(12*gridy),10,10);
 			}
 		}
+		x = ((curcolor&3)*12)+x-1;
+		y = (((curcolor&0xFC)>>2)*12)+y-1;
+		gfx_SetColor(COLOR_WHITE|COLOR_LIGHTER);
+		gfx_Rectangle_NoClip(x,y,12,12);
+		gfx_Rectangle_NoClip(x+1,y+1,10,10);
 	} else {
 		//Show ship's total status
 		total_hp=total_atk=total_def=total_spd=total_agi=0;
@@ -613,38 +631,12 @@ void drawRightBar(void) {
 			total_spd  += tbpo->spd;
 			total_agi  += tbpo->agi;
 		}
-		x = (64+6+192+6-2); y = 24+41; y2 = y+12;
-		
-		//Print HP
-		drawAndSetupTextBox(x,y,52,22,COLOR_GREEN,COLOR_BLACK);
-		gfx_PrintString("HT  PTS");
-		gfx_SetTextXY(x+10,y2);
-		gfx_PrintUInt(total_hp,4);
-		y += 22; y2 += 22;
-		//Print ATTACK
-		drawAndSetupTextBox(x,y,52,22,COLOR_WHITE,COLOR_BLACK);
-		gfx_PrintString("ATTACK");
-		gfx_SetTextXY(x+14,y2);
-		gfx_PrintUInt(total_atk,3);
-		y += 22; y2 += 22;
-		//Print ARMOR
-		drawAndSetupTextBox(x,y,52,22,COLOR_BLACK,COLOR_WHITE);
-		gfx_PrintString("ARMOR ");
-		gfx_SetTextXY(x+14,y2);
-		gfx_PrintUInt(total_def,3);
-		y += 22; y2 += 22;
-		//Print SPEED
-		drawAndSetupTextBox(x,y,52,22,COLOR_RED,COLOR_WHITE);
-		gfx_PrintString("SPEED");
-		gfx_SetTextXY(x+14,y2);
-		gfx_PrintUInt(total_spd,3);
-		y += 22; y2 += 22;
-		//Print AGILITY
-		drawAndSetupTextBox(x,y,52,22,COLOR_BLUE,COLOR_WHITE);
-		gfx_PrintString("AGILTY");
-		gfx_SetTextXY(x+14,y2);
-		gfx_PrintUInt(total_agi,3);
-		//y += 22; y2 += 22;
+		y = 24+41;
+		rightBarStats("HT  PTS",&y,COLOR_GREEN,COLOR_BLACK,total_hp);
+		rightBarStats("ATTACK",&y,COLOR_WHITE,COLOR_BLACK,total_atk);
+		rightBarStats("ARMOR",&y,COLOR_BLACK,COLOR_WHITE,total_def);
+		rightBarStats("SPEED",&y,COLOR_RED,COLOR_WHITE,total_spd);
+		rightBarStats("AGILTY",&y,COLOR_BLUE,COLOR_WHITE,total_agi);
 	}
 }
 
@@ -811,7 +803,38 @@ void modifyCursorPos(uint8_t *xpos, uint8_t *ypos, kb_key_t dir, uint8_t xlim, u
 	
 }
 
-
+/* Returns block offset in curblueprint. 0xFF if item not found  */
+uint8_t checkGridCollision(uint8_t xpos, uint8_t ypos) {
+	uint8_t i,offset,limit,w,h,t,x,y;
+	gridblock_obj *gridblock;
+	blockprop_obj *blockprop;
+	
+	offset = gridlevel-curblueprint->gridlevel;
+	xpos -= offset;
+	ypos -= offset;
+	limit = 6+(curblueprint->gridlevel*2);
+	if (xpos>=limit || ypos>=limit) return 0xFF;  //outside range
+	
+	for (i=0;i<curblueprint->numblocks;i++) {
+		gridblock = &curblueprint->blocks[i];
+		blockprop = &blockobject_list[gridblock->block_id];
+		x = gridblock->x;
+		y = gridblock->y;
+		w = blockprop->w;
+		h = blockprop->h;
+		if (gridblock->orientation&1) {
+			t = w;
+			w = h;
+			h = t;
+		}
+		if ((xpos>=x) && (xpos<(x+w))) {
+			if ((ypos>=y) && (ypos<(y+h))) {
+				return gridblock->block_id;
+			}
+		}
+	}
+	return 0xFF;
+}
 
 
 
