@@ -4,6 +4,10 @@
 #include <stdint.h>
 #include <graphx.h>		//Provides typedefs for graphx objects
 
+#define VERSION_MAIN 0
+#define VERSION_SUB 01
+#define FILE_VERSION 1
+
 /* DEFINES FOR GAME STATE */
 #define GS_STATE_MASK 0xF0
 
@@ -114,8 +118,9 @@ typedef struct gridblock_obj_struct {
 
 /* Used to define a collection of blocks that would form up a ship */
 typedef struct blueprint_obj_struct {
-	uint8_t gridlevel;
+	uint8_t gridlevel; //A gridlevel of 0 indicates that this was deleted.
 	uint8_t numblocks;
+	char name[17];
 	gridblock_obj *blocks;
 } blueprint_obj;
 

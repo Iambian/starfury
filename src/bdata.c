@@ -119,6 +119,7 @@ gridblock_obj basic_blueprint_grid[] = {
 blueprint_obj basic_blueprint = {
 	GRID_LEVEL_1,
 	sizeof basic_blueprint_grid / sizeof basic_blueprint_grid[0],
+	"Refurbished Ship",
 	basic_blueprint_grid,
 };
 

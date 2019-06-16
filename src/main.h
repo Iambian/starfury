@@ -4,16 +4,9 @@
 #include <stdint.h>
 
 
-extern uint8_t *inventory;
-extern blueprint_obj *curblueprint;
-
-
-
-
-
-
-
-
+void waitanykey(void);
+void keywait(void);
+void error(char *msg);
 
 
 #endif
