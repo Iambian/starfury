@@ -52,6 +52,7 @@ void modifyCursorPos(uint8_t *xpos, uint8_t *ypos, kb_key_t dir, uint8_t xlim, u
 void updateGridArea(void);
 uint8_t checkGridCollision(uint8_t xpos, uint8_t ypos);   //Returns block offset in curblueprint
 void prepareGridItem(gridblock_obj *gbo);
+void adjustCursorWithOrientation(void);
 
 
 void keywait(void);
@@ -92,7 +93,7 @@ gamedata_t gamedata;
 
 void main(void) {
 	kb_key_t kc,kd;
-	uint8_t i,update_flags,tx,ty,t;
+	uint8_t i,update_flags,tx,ty,t,limit;
 	uint8_t tt;
 
     gfx_Begin(gfx_8bpp);
@@ -135,7 +136,7 @@ void main(void) {
 		kd = kb_Data[7];
 		kc = kb_Data[1];
 		
-		
+		limit = (gridlevel<<1)+6;  //8,10,12. Place somewhere static. Gridlevel won't change on us
 		/* Handle top row buttons */
 		if (kc&kb_Graph) {
 			if (edit_status&FILE_SELECT) {
@@ -148,20 +149,92 @@ void main(void) {
 				}
 			}
 		}
+		if (kc&kb_Trace) {
+			if (edit_status&FILE_SELECT) {
+				//Nothing in this file menu slot. Yet?
+			} else {
+				if (edit_status&EDIT_SELECT) {
+					//Assumes move mode. Rotate CW
+					t = selected_object.orientation;
+					selected_object.orientation = ((t+1)&3)|(t&0xFC);
+					adjustCursorWithOrientation();
+				} else if (edit_status&COLOR_SELECT) {
+					//Color LOCK
+				}
+			}
+		}
+		
+		if (kc&kb_Zoom) {
+			if (edit_status&FILE_SELECT) {
+				//File: RELOAD. Copy from file to buffer.
+			} else {
+				if (edit_status&EDIT_SELECT) {
+					//Assumes move mode. Flip
+					selected_object.orientation ^= HFLIP;
+				} else if (edit_status&COLOR_SELECT) {
+					//Color all with selected color
+					for (i=0;i<curblueprint->numblocks;i++) {
+						curblueprint->blocks[i].color = curcolor;
+					}
+				}
+			}
+		}
+		
+		if (kc&kb_Window) {
+			if (edit_status&FILE_SELECT) {
+				//File: SAVE. Write current buffer out to file.
+			} else {
+				if (edit_status&EDIT_SELECT) {
+					//Assumes move mode. Rotate CCW
+					t = selected_object.orientation;
+					selected_object.orientation = ((t-1)&3)|(t&0xFC);
+					adjustCursorWithOrientation();
+				} else if (edit_status&COLOR_SELECT) {
+					//Change to grid with color select mode. edit_status: PICKING_COLOR
+				}
+			}
+		}
+		
+		if (kc&kb_Yequ) {
+			edit_status ^= FILE_SELECT;
+			update_flags |= PAN_STATUS;
+		}
+		
+		if (kc&(kb_Graph|kb_Trace|kb_Zoom|kb_Window|kb_Yequ)) update_flags |= PAN_GRID;
 		
 		/* Handle command buttons */
-		if (kb_Data[6]&kb_Clear) { keywait(); break; }
+		if (kb_Data[6]&kb_Clear) { keywait(); break; } /* DEBUG: INSTANT QUIT */
 		if (kc&kb_2nd) {
-			if (edit_status&COLOR_SELECT) {
+			if (edit_status&FILE_SELECT) {
+				//Check if there's any blocking menus. Otherwise do nothing.
+				
+			} else if (edit_status&COLOR_SELECT) {
 				//Running paint mode
 				if (edit_status&NOW_PAINTING) {
 					//paint a block
-					
-					
+					t = checkGridCollision(cursorx,cursory);
+					if (t != 0xFF) {
+						curblueprint->blocks[t].color = curcolor;
+						updateGridArea();
+						update_flags |= PAN_GRID;
+					}
+				} else if (edit_status&PICKING_COLOR) {
+					//Pick a color, then switch to coloring mode
+					t = checkGridCollision(cursorx,cursory);
+					if (t != 0xFF) {
+						curcolor = curblueprint->blocks[t].color;
+						edit_status &= ~PICKING_COLOR;
+						update_flags |= 0XFF;  //Update everything
+					}
 				} else {
 					//select color and open grid cursor movement
 					edit_status |= NOW_PAINTING;
 					update_flags |= PAN_GRID;
+					if ((cursorx|cursory)&0x80) {
+						cursorx ^= 0xFF;
+						if (cursorx>=limit) cursorx = 0;
+						if (cursory&0x80) cursory = 0;
+					}
 				}
 			} else {
 				//Running edit mode
@@ -182,7 +255,9 @@ void main(void) {
 						selected_object.orientation = ROT_0;
 						edit_status |= EDIT_SELECT;
 						if (cursory>12) cursory=0;
-						cursorx = 0;
+						cursorx ^= 0xFF;
+						if (cursorx>=limit) cursorx = 0;
+						adjustCursorWithOrientation();
 						update_flags |= (PAN_GRID|PAN_CURSEL|PAN_STATUS);
 					}
 				} else {
@@ -197,7 +272,30 @@ void main(void) {
 		
 		
 		
-		if (kc&kb_Mode) { keywait(); break; }
+		if (kc&kb_Mode) {
+			if (edit_status&FILE_SELECT) {
+				if ((edit_status&(OTHER_CONFIRM|QUIT_CONFIRM))) {
+					//Go back from blocking
+					
+				} else {
+					//Turn off FILE_SELECT mode
+					edit_status &= ~FILE_SELECT;
+				}
+			} else {
+				//Not doing a file operation. Check other states
+				if (edit_status&EDIT_SELECT) {
+					//If holding a block, put it away
+					if (selected_object.block_id) selected_object.block_id = 0;
+					edit_status &= ~EDIT_SELECT;
+				} else if (edit_status&COLOR_SELECT) {
+					if (edit_status&(NOW_PAINTING|PICKING_COLOR)) {
+						cursorx ^= 0xFF;
+						edit_status &= ~(NOW_PAINTING|PICKING_COLOR);
+					}
+				} else cursorx ^= 0xFF;
+			}
+			update_flags |= (PAN_GRID|PAN_STATUS);
+		}
 		
 		/* Handle directional buttons */
 		if (edit_status&COLOR_SELECT && !(edit_status&NOW_PAINTING)) {
@@ -215,31 +313,27 @@ void main(void) {
 				if (kd&kb_Up)   curindex = getPrevInvIndex(curindex);
 				if (kd&(kb_Up|kb_Down)) update_flags |= (PAN_INV|PAN_CURSEL);
 				if (kd&kb_Right) {
-					cursorx = 0;                //keep cursory if possible
-					if (cursory>127) cursory=0; //but reset it if not.
+					cursorx ^= 0xFF;
+					if (cursorx>=limit) cursorx = 0;
+					if (cursory>127) cursory=0;
 					update_flags |= (PAN_GRID|PAN_CURSEL);
 				}
 			} else {
 				//Cursor on the grid
-				if (!cursorx && kd&kb_Left) {
-					cursorx = -1;
+				if (kd) {
+					if (edit_status&EDIT_SELECT) {
+						tx = blockobject_list[selected_object.block_id].w-1;
+						ty = blockobject_list[selected_object.block_id].h-1;
+						//If C or CC once rotate, flip tx and ty
+						if (selected_object.orientation&1) {
+							t = tx;
+							tx = ty;
+							ty = t;
+						}
+					} else tx = ty = 0;
+					//Use tx and ty to restrict large blocks to grid area
+					modifyCursorPos(&cursorx,&cursory,kd,(6+gridlevel*2)-tx,(6+gridlevel*2)-ty);
 					update_flags |= (PAN_GRID|PAN_CURSEL);
-				} else {
-					if (kd) {
-						if (edit_status&EDIT_SELECT) {
-							tx = blockobject_list[selected_object.block_id].w-1;
-							ty = blockobject_list[selected_object.block_id].h-1;
-							//If C or CC once rotate, flip tx and ty
-							if (selected_object.orientation&1) {
-								t = tx;
-								tx = ty;
-								ty = t;
-							}
-						} else tx = ty = 0;
-						//Use tx and ty to restrict large blocks to grid area
-						modifyCursorPos(&cursorx,&cursory,kd,(6+gridlevel*2)-tx,(6+gridlevel*2)-ty);
-						update_flags |= (PAN_GRID|PAN_CURSEL);
-					}
 				}
 			}
 		}
@@ -342,7 +436,7 @@ void initGridArea(uint8_t grlevel) {
 
 void drawGridArea(void) {
 	int sx,tx,w,h;
-	uint8_t offset,sy,ty,cols,gridy,gridx,limit;
+	uint8_t offset,sy,ty,cols,gridy,gridx,limit,t;
 	uint8_t xoff,yoff,i,orientation,spriteid;
 	gfx_sprite_t *srcsprite;
 	
@@ -373,6 +467,11 @@ void drawGridArea(void) {
 			//Set cursor width and height
 			w = blockobject_list[selected_object.block_id].w*16;
 			h = blockobject_list[selected_object.block_id].h*16;
+			if (selected_object.orientation&1) {
+				t = w;
+				w = h;
+				h = t;
+			}
 		} else {
 			//Set cursor width and height
 			w = 16; h=16;
@@ -526,7 +625,7 @@ void drawPreview(void) {
 
 
 void drawCurSelBar(void) {
-	uint8_t i,blocktype,y,w,cofg,cobg;
+	uint8_t i,blocktype,y,w,cofg,cobg,t;
 	int x;
 	char *s;
 	gfx_sprite_t *spr;
@@ -543,8 +642,11 @@ void drawCurSelBar(void) {
 			//If the cursor is over the inventory
 			blocktype = curindex;
 		} else {
-			blocktype = checkGridCollision(cursorx,cursory);
-			if (blocktype==0xFF) blocktype = 0;
+			if (0xFF == (t = checkGridCollision(cursorx,cursory))) {
+				blocktype = 0;
+			} else {
+				blocktype = curblueprint->blocks[t].block_id;
+			}
 		}
 	}
 	//Move the following inside of if condition once render is verified correct
@@ -745,13 +847,14 @@ void drawStatusBar(void) {
 			drawOption(4,"PAINTER",1);
 			drawOption(3,"LOCK",!!(curcolor==gamedata.default_color));
 			drawOption(2,"COLR ALL",0);
-			drawOption(1,"GET COLR",0);
+			drawOption(1,"GET COLR",!!(edit_status&PICKING_COLOR));
 		} else {
 			//Handle move mode. Note: EDIT_SELECT used only if holding a block
 			drawOption(4,"EDITOR",1);
 			if (edit_status&EDIT_SELECT) {
-				drawOption(3,"ROTATE",0);
+				drawOption(3,"ROT CW",0);
 				drawOption(2,"FLIP",0);
+				drawOption(1,"ROT CCW",0);
 			}
 		}
 	}
@@ -893,7 +996,7 @@ uint8_t checkGridCollision(uint8_t xpos, uint8_t ypos) {
 			h = t;
 		}
 		if (gfx_CheckRectangleHotspot(xpos,ypos,sw,sh,x,y,w,h)) {
-			return gridblock->block_id;
+			return i;
 		}
 	}
 	return 0xFF;
@@ -918,6 +1021,21 @@ void prepareGridItem(gridblock_obj *gbo) {
 	if (gbo->orientation&HFLIP) gfx_FlipSpriteY(tempblock_scratch,tempblock_grid);
 	else                        memcpy(tempblock_grid,tempblock_scratch,h*w+2);
 	fn_PaintSprite(tempblock_grid,gbo->color);
+}
+
+void adjustCursorWithOrientation(void) {
+	uint8_t w,h,t,limit;
+	
+	limit = (gridlevel<<1)+6;  //8,10,12
+	w = blockobject_list[selected_object.block_id].w;
+	h = blockobject_list[selected_object.block_id].h;
+	if (selected_object.orientation&1) {
+		t = w;
+		w = h;
+		h = t;
+	}
+	if (cursorx+w > limit) cursorx = limit-w;
+	if (cursory+h > limit) cursory = limit-h;
 }
 
 
