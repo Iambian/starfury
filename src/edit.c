@@ -74,9 +74,11 @@ void openEditor(void) {
 	
 	limit = (gamedata.gridlevel<<1)+6;
 	cursorx = cursory = -1;
-	curcolor = DEFAULT_COLOR;
+	curcolor = gamedata.default_color;
 	curblueprint = &temp_blueprint;
 	update_flags = 0xFF;
+	gridlevel = gamedata.gridlevel;
+	curindex = getNextInvIndex(0);
 
 
 	//Malloc for all temporary variables
@@ -142,6 +144,7 @@ void openEditor(void) {
 						curblueprint->blocks[i].color = curcolor;
 					}
 					updateGridArea();
+					update_flags |= PAN_PREVIEW;
 				}
 			}
 		}
@@ -156,6 +159,13 @@ void openEditor(void) {
 					adjustCursorWithOrientation();
 				} else if (edit_status&COLOR_SELECT) {
 					//Change to grid with color select mode. edit_status: PICKING_COLOR
+					if ((cursorx|cursory)&0x80) {
+						cursorx ^= 0xFF;
+						if (cursorx>=limit) cursorx = 0;
+						if (cursory&0x80) cursory = 0;
+					}					
+					edit_status ^= PICKING_COLOR;
+					update_flags |= PAN_STATUS;
 				}
 			}
 		}
@@ -170,27 +180,43 @@ void openEditor(void) {
 			keywait();
 			break;
 		}
+		
+		if (kc == kb_Del) {
+			if ((cursorx|cursory<128) && ((t=checkGridCollision(cursorx,cursory))!=0xFF)) {
+				if (edit_status&NOW_PAINTING) {
+					curblueprint->blocks[t].color = gamedata.default_color;
+					updateGridArea();
+					update_flags |= (PAN_GRID|PAN_INV);
+				} else {
+					//Remove block under the cursor
+					curblueprint->blocks[t].block_id = 0;
+					update_flags |= (PAN_GRID|PAN_LIM|PAN_INV);
+					updateGridArea();
+				}
+			}
+		}
 		if (kc == kb_2nd) {
 			if (edit_status&FILE_SELECT) {
 				//Check if there's any blocking menus. Otherwise do nothing.
 				
 			} else if (edit_status&COLOR_SELECT) {
 				//Running paint mode
-				if (edit_status&NOW_PAINTING) {
+				if ((edit_status&NOW_PAINTING)&&!(edit_status&PICKING_COLOR)) {
 					//paint a block
 					t = checkGridCollision(cursorx,cursory);
 					if (t != 0xFF) {
 						curblueprint->blocks[t].color = curcolor;
 						updateGridArea();
-						update_flags |= PAN_GRID;
+						update_flags |= (PAN_PREVIEW|PAN_GRID);
+						updateGridArea();
 					}
 				} else if (edit_status&PICKING_COLOR) {
 					//Pick a color, then switch to coloring mode
 					t = checkGridCollision(cursorx,cursory);
 					if (t != 0xFF) {
 						curcolor = curblueprint->blocks[t].color;
-						edit_status &= ~PICKING_COLOR;
-						update_flags |= 0XFF;  //Update everything
+						//edit_status &= ~PICKING_COLOR;
+						update_flags |= 0xFF;  //Update everything
 					}
 				} else {
 					//select color and open grid cursor movement
@@ -228,9 +254,26 @@ void openEditor(void) {
 					}
 				} else {
 					//Picking up or plopping a piece out on the grid
-						
-						
-						
+					if (edit_status&EDIT_SELECT) {
+						//Put down an object
+						if ((t = checkGridCollision(cursorx,cursory)) == 0xFF) {
+							selected_object.x = cursorx;
+							selected_object.y = cursory;
+							addGridBlock(&selected_object);
+							updateGridArea();
+							edit_status &= ~EDIT_SELECT;
+							update_flags |= (PAN_LIM|PAN_INV);
+						}
+					} else {
+						//Pick up an object
+						if ((t = checkGridCollision(cursorx,cursory)) != 0xFF) {
+							memcpy(&selected_object,&curblueprint->blocks[t],sizeof empty_gridblock);
+							curblueprint->blocks[t].block_id = 0; //Remove from grid
+							updateGridArea();
+							edit_status |= EDIT_SELECT;
+							update_flags |= (PAN_LIM|PAN_INV);
+						}
+					}
 					update_flags |= (PAN_GRID|PAN_CURSEL);
 				}
 			}
@@ -260,7 +303,7 @@ void openEditor(void) {
 			update_flags |= (PAN_GRID|PAN_STATUS);
 		}
 		/* =================== HANDLE DIRECTIONAL BUTTONS ================= */
-		if (edit_status&COLOR_SELECT && !(edit_status&NOW_PAINTING)) {
+		if (edit_status&COLOR_SELECT && !(edit_status&(NOW_PAINTING|PICKING_COLOR))) {
 			//Selecting color palette. Bitmask shenanigans follows.
 			if (kd&kb_Down)  curcolor = (curcolor+4)&0x3F;
 			if (kd&kb_Up)    curcolor = (curcolor-4)&0x3F;
@@ -379,10 +422,9 @@ void drawGridArea(void) {
 	gfx_ScaledTransparentSprite_NoClip(buildarea,sx,sy,2,2);
 	//Draw cursor and held block if applicable
 	if ((cursorx|cursory)<128) {
-		if (edit_status&EDIT_SELECT) {
+		if (edit_status&EDIT_SELECT && selected_object.block_id) {
 			//Prepare and draw sprite
 			prepareGridItem(&selected_object);
-			
 			/* TODO: Change gfx_TransparentSprite to whatever will draw 2x scale stuff */
 			gfx_ScaledTransparentSprite_NoClip(tempblock_grid,sx+(cursorx*16),sy+(cursory*16),2,2);
 			//Set cursor width and height
@@ -647,6 +689,7 @@ void drawPowerLimit(void) {
 	tgbo = curblueprint->blocks;
 	energy_used = energy_total = 0;
 	for (i=0;i<curblueprint->numblocks;i++) {
+		if (!tgbo[i].block_id) continue;  //Do not process empty blocks
 		tbpo = &blockobject_list[tgbo[i].block_id];
 		if (tbpo->type&(COMMAND|ENERGYSOURCE)) {
 			energy_total += tbpo->cost;
@@ -708,6 +751,7 @@ void drawRightBar(void) {
 		total_hp=total_atk=total_def=total_spd=total_agi=0;
 		tgbo = curblueprint->blocks;
 		for (i=0;i<curblueprint->numblocks;i++) {
+			if (!tgbo[i].block_id) continue;  //Do not process empty blocks
 			tbpo = &blockobject_list[tgbo[i].block_id];
 			total_hp  += tbpo->hp;
 			total_atk += tbpo->atk;
@@ -837,6 +881,7 @@ void updateGridArea(void) {
 	if (!blueprint) return;
 	offset = gridlevel-blueprint->gridlevel;
 	for (i=0;i<blueprint->numblocks;i++) {
+		if (!blueprint->blocks[i].block_id) continue; //Do not draw empty blocks
 		prepareGridItem(&blueprint->blocks[i]);
 		fn_DrawNestedSprite(tempblock_grid,buildarea,(offset+blueprint->blocks[i].x)<<3,(offset+blueprint->blocks[i].y)<<3);
 	}
@@ -876,6 +921,7 @@ uint8_t checkGridCollision(uint8_t xpos, uint8_t ypos) {
 	}
 	for (i=0;i<curblueprint->numblocks;i++) {
 		gridblock = &curblueprint->blocks[i];
+		if (!gridblock->block_id) continue;  //Do not catch empty blocks
 		blockprop = &blockobject_list[gridblock->block_id];
 		x = gridblock->x;
 		y = gridblock->y;
@@ -897,6 +943,8 @@ uint8_t checkGridCollision(uint8_t xpos, uint8_t ypos) {
 void prepareGridItem(gridblock_obj *gbo) {
 	uint8_t i,w,h;
 	gfx_sprite_t *srcsprite;
+	
+	if (!gbo->block_id) return;  //Do not display empty objects
 	
 	srcsprite = blockobject_list[gbo->block_id].sprite;
 	

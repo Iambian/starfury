@@ -29,19 +29,14 @@
 	
 */
 
-/* Function prototypes */
-void initPlayerData(void);
-ti_var_t openSaveReader(void);
-void saveGameData(void);
-
-void setMinimalInventory(void);
-
+/* Function prototypes (defined in dataio.h) */
 
 
 /* Static stuff */
 
 char *savefile = "SFuryPDt";
 blueprint_obj empty_blueprint = {0,0,"Empty file      ",NULL};
+gridblock_obj empty_gridblock = {0,0,0,0,ROT_1};
 
 /* Globals */
 uint8_t *inventory;              //256 entry wide, indexed by position.
@@ -59,7 +54,7 @@ void initPlayerData(void) {
 	gamedata.file_version = FILE_VERSION;
 	gamedata.gridlevel = 1;
 	gamedata.blueprints_owned = BP_BASIC;
-	gamedata.default_color = COLOR_GREEN;
+	gamedata.default_color = DEFAULT_COLOR;
 	gamedata.credits_owned = 100;
 	gamedata.custom_blueprints_owned = 1;
 	//Setup inventory
@@ -202,7 +197,20 @@ void normalizeBlueprint(void) {
 	}
 }
 
-
+void addGridBlock(gridblock_obj *gbo) {
+	uint8_t i;
+	
+	//Search for first free spot
+	for (i=0;i<temp_blueprint.numblocks;i++) {
+		if (!temp_blueprint.blocks[i].block_id) {
+			memcpy(&temp_blueprint.blocks[i],gbo,sizeof empty_gridblock);
+			return;  //Block added. Finish.
+		}
+	}
+	//If not found, append and expand
+	memcpy(&temp_blueprint.blocks[temp_blueprint.numblocks],gbo,sizeof empty_gridblock);
+	temp_blueprint.numblocks++;
+}
 
 
 

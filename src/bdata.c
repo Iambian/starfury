@@ -70,7 +70,7 @@ blockprop_obj blockobject_list[] = {
 	{GST wingmed_data    ,FILLER ,   2,1,2,  1,  0,  0,  2,  0,"M Wing"},
 	{GST winglong_data   ,FILLER ,   3,1,3,  1,  0,  0,  3,  0,"L Wing"},
 	{GST enginesmall_data,ENGINE ,  10,1,1,  5,  0,  0,  1,  5,"S Engine"},
-	{GST enginelarge_data,ENGINE ,  30,1,1, 10,  0,  0,  3, 10,"M Engine"},
+	{GST enginelarge_data,ENGINE ,  30,2,2, 10,  0,  0,  3, 10,"M Engine"},
 	{GST turret1_data    ,WEAPON ,  10,1,1,  0,  1,  0,  0,  0,"S Turret"},
 	{GST turret2_data    ,WEAPON ,  15,1,1,  1,  2,  0,  0,  0,"M Turret"},
 /*   sptr                ,type   ,cost,w,h, hp,atk,def,agi,spd,name         */

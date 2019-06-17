@@ -19,6 +19,9 @@ typedef struct gamedata_struct {
 
 /* Variables */
 
+extern blueprint_obj empty_blueprint;  //Convenience object for sizeof
+extern gridblock_obj empty_gridblock;  //Convenience object for sizeof
+
 extern uint8_t *inventory;
 extern blueprint_obj *curblueprint;
 extern gamedata_t gamedata;
@@ -39,6 +42,7 @@ void loadBlueprint(uint8_t bpslot);
 void loadBuiltinBlueprint(uint8_t bpslot);
 void setMinimalInventory(void);
 void normalizeBlueprint(void);
+void addGridBlock(gridblock_obj *gbo);
 
 
 #endif
