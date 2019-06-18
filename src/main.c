@@ -36,12 +36,33 @@
 
 /* Put your function prototypes here */
 
+uint8_t getShipData(uint8_t sidx);
+uint8_t prevShipIndex(uint8_t sidx);
+uint8_t nextShipIndex(uint8_t sidx);
+void renderShipFile(uint8_t pos,uint8_t index);  //pos: 0,1,2. index is shipselidx
+
+
+
+
 void keywait(void);
 void waitanykey(void);
 void error(char *msg);
 
 /* Put all your globals here */
+gfx_sprite_t *mainsprite;
+gfx_sprite_t *altsprite;
+gfx_sprite_t *tempblock_scratch;
 
+/* Globals and defines that will be moved out to a new file once done testing */
+uint8_t shipselidx;
+
+
+
+#define STRI_TOPY (20+64+4+((64-32)/2))
+#define STRI_BTMY (20+64+4+((64-32)/2)+32)
+#define STRI_MIDY (20+64+4+((64-32)/2)+32-16)
+#define STRI_LX (64-32)
+#define STRI_RX (64+128+64+(64-32))
 
 
 
@@ -58,6 +79,11 @@ void main(void) {
 	gfx_SetTransparentColor(TRANSPARENT_COLOR);
 	gfx_SetTextTransparentColor(TRANSPARENT_COLOR);
 	gfx_SetTextBGColor(TRANSPARENT_COLOR);
+	mainsprite = gfx_MallocSprite(PREVIEWBLOCK_MAX_W,PREVIEWBLOCK_MAX_H);
+	altsprite = gfx_MallocSprite(PREVIEWBLOCK_MAX_W,PREVIEWBLOCK_MAX_H);
+	tempblock_scratch = gfx_MallocSprite(PREVIEWBLOCK_MAX_W,PREVIEWBLOCK_MAX_H);
+
+	
 	ti_CloseAll();
 	/* Load save file */
 	
@@ -68,8 +94,62 @@ void main(void) {
 	
 	/* INITIALIZE DEBUG LOGIC */
 	
-	openEditor();  //DEBUGGING: EDITOR
+	//openEditor();  //DEBUGGING: EDITOR
 
+	
+	//Initialize selector render
+	shipselidx = 0;  //You will always have a starting blueprint
+	
+	
+	
+	
+	
+	while (1) {
+		kb_Scan();
+		kd = kb_Data[7];
+		kc = kb_Data[1];
+		gfx_FillScreen(COLOR_BLACK);
+		if (kc&kb_Mode) { keywait(); break; }
+		
+		if (kd == kb_Up) {
+			if (shipselidx) shipselidx = prevShipIndex(shipselidx);
+		}
+		if (kd == kb_Down) {
+			if (0xFF != nextShipIndex(shipselidx))
+				shipselidx = nextShipIndex(shipselidx);
+		}
+		
+		
+		
+		gfx_SetColor(0x56); //A faded blue
+		gfx_FillTriangle(STRI_LX,STRI_TOPY,STRI_LX,STRI_BTMY,STRI_LX+24,STRI_MIDY); //L
+		gfx_SetColor(0xD6); //A faded blue
+		gfx_FillTriangle(STRI_LX+2,STRI_TOPY+4,STRI_LX+2,STRI_BTMY-4,STRI_LX+24-4,STRI_MIDY);
+		gfx_SetColor(0x56); //A faded blue
+		gfx_FillTriangle(STRI_RX,STRI_TOPY,STRI_RX,STRI_BTMY,STRI_RX-24,STRI_MIDY); //R
+		gfx_SetColor(0xD6); //A faded blue
+		gfx_FillTriangle(STRI_RX-2,STRI_TOPY+4,STRI_RX-2,STRI_BTMY-4,STRI_RX-24+4,STRI_MIDY);
+		
+		
+		
+		
+		
+		gfx_SetColor(0x56); //A faded blue
+		gfx_FillRectangle(64,20,(128+64),64);              //Opt 1
+		gfx_SetColor(0x65); //A faded red
+		gfx_FillRectangle(64,(20+64+4),(128+64),64);       //Opt 2
+		gfx_FillRectangle(64,(20+64+4+64+4),(128+64),64);  //Opt 3
+		
+		
+		
+		
+		
+		
+		gfx_BlitBuffer();
+		if (kd|kc) keywait();
+		
+	}
+	
 	/* Preserve save file and exit */
 //	int_Reset();
 	gfx_End();
@@ -80,23 +160,74 @@ void main(void) {
 	
 	
 	
-	/* Start game */
-	while (1) {
-		kb_Scan();
-		kd = kb_Data[7];
-		kc = kb_Data[1];
-		
-		gfx_BlitBuffer();
-		
-		/* Debounce */
-		if (kd|kc) keywait();
-		
-	}
 
 	
 }
 
 /* Put other functions here */
+
+
+//Writes to temp_blueprint and temp_bpgrid when called
+//Returns 0 if success, something else if failure
+uint8_t getShipData(uint8_t sidx) {
+	uint8_t i;
+	if (sidx<8) {
+		//Detect internal blueprint
+		if ((1<<sidx)&gamedata.blueprints_owned) {
+			loadBuiltinBlueprint(sidx);
+		} else return 1;
+	} else {
+		//Find external blueprint
+		loadBlueprint(sidx-8);
+		if (!temp_blueprint.gridlevel) return 1;
+	}
+	return 0;
+}
+
+//Returns 0xFF if object not found, otherwise returns something between 0 and 13
+uint8_t prevShipIndex(uint8_t sidx) {
+	while ((--sidx) != 0xFF) {
+		if (!getShipData(sidx)) return sidx;
+	}
+	return 0xFF;
+}
+
+//Returns 0xFF if object not found, otherwise returns something between 0 and 13
+uint8_t nextShipIndex(uint8_t sidx) {
+	while ((++sidx) < (8+gamedata.custom_blueprints_owned)) {
+		if (!getShipData(sidx)) return sidx;
+	}
+	return 0xFF;
+}
+
+//pos: 0,1,2. 1 is the middle option
+void renderShipFile(uint8_t pos,uint8_t index) {
+	uint8_t i,ybase;
+	int xbase;
+	
+	if (index==0xFF) return;  //Do not render a null entry.
+	
+	xbase = 64;
+	ybase = 20+pos*(64+4);
+	
+	if (index<8) gfx_SetColor(0x65);  //A faded red
+	else         gfx_SetColor(0x56);  //A faded blue
+	
+	
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 /*
 void setup_palette(void) {

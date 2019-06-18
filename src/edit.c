@@ -48,18 +48,18 @@ void adjustCursorWithOrientation(void);
 
 
 
-
-/* Globals can go here */
+/* Variables that are malloc'd to */
 gfx_sprite_t *buildarea;		//Up to 96x96 upscaled by 2 during render.
 gfx_sprite_t *tempblock_grid; 	//Up to 32x32 (4x4 block)
 gfx_sprite_t *tempblock_inv;    //Up to 32x32 (4x4 block)
-gfx_sprite_t *tempblock_scratch;	//Up to 48x48 (4x4 block)
+// note: tempblock_scratch moved to main.c for more permanent role
+
+/* Globals can go here */
 
 //Note: curblueprint defined in dataio.c. It's also set up there on file load
-uint8_t gridlevel;             //Used internally
-
-uint8_t curcolor;         //Currently selected color (keep intensity 0)
-uint8_t curindex;         //Index of currently selected object
+uint8_t gridlevel;      //Used internally
+uint8_t curcolor;       //Currently selected color (keep intensity 0)
+uint8_t curindex;       //Index of currently selected object
 uint8_t cursorx;		//- If these two are greater than 11, assume that	
 uint8_t cursory;		//- the cursor is focused on the inventory bar
 uint8_t edit_status;    //Bitfield. See enum ESTAT
@@ -72,6 +72,7 @@ void openEditor(void) {
 	uint8_t i,update_flags,tx,ty,t,limit;
 	uint8_t tt;
 	
+	//Init
 	limit = (gamedata.gridlevel<<1)+6;
 	cursorx = cursory = -1;
 	curcolor = gamedata.default_color;
@@ -80,13 +81,9 @@ void openEditor(void) {
 	gridlevel = gamedata.gridlevel;
 	curindex = getNextInvIndex(0);
 
-
 	//Malloc for all temporary variables
-	
-	buildarea = NULL; /*Unsure if this is BSS. Added to ensure value if not */
 	tempblock_grid = gfx_MallocSprite(TEMPBLOCK_MAX_W,TEMPBLOCK_MAX_H);
 	tempblock_inv  = gfx_MallocSprite(TEMPBLOCK_MAX_W,TEMPBLOCK_MAX_H);
-	tempblock_scratch = gfx_MallocSprite(PREVIEWBLOCK_MAX_W,PREVIEWBLOCK_MAX_H);
 	t = limit<<3;
 	if (!(buildarea = gfx_MallocSprite(t,t))) error("Buildarea malloc fail");
 	fn_FillSprite(buildarea,TRANSPARENT_COLOR);
@@ -96,10 +93,7 @@ void openEditor(void) {
 	for (i=2;i<25;i++) {
 		if (!inventory[i]) inventory[i] = 5;
 	}
-	
-	
 
-	
 	while (1) {
 		kb_Scan(); kd = kb_Data[7]; kc = kb_Data[1];
 		
@@ -190,12 +184,13 @@ void openEditor(void) {
 				} else {
 					//Remove block under the cursor
 					curblueprint->blocks[t].block_id = 0;
-					update_flags |= (PAN_GRID|PAN_LIM|PAN_INV);
+					update_flags |= (PAN_GRID|PAN_LIM|PAN_INV|PAN_RIGHT);
 					updateGridArea();
 				}
 			}
 		}
 		if (kc == kb_2nd) {
+			update_flags |= PAN_RIGHT;
 			if (edit_status&FILE_SELECT) {
 				//Check if there's any blocking menus. Otherwise do nothing.
 				
@@ -250,7 +245,7 @@ void openEditor(void) {
 						cursorx ^= 0xFF;
 						if (cursorx>=limit) cursorx = 0;
 						adjustCursorWithOrientation();
-						update_flags |= (PAN_GRID|PAN_CURSEL|PAN_STATUS);
+						update_flags |= 0xFF;
 					}
 				} else {
 					//Picking up or plopping a piece out on the grid
@@ -361,10 +356,10 @@ void openEditor(void) {
 			drawGridArea();
 		}
 		//preview
-		if (update_flags&PAN_PREVIEW) {
-			update_flags &= ~PAN_PREVIEW;
+		//if (update_flags&PAN_PREVIEW) {
+		//	update_flags &= ~PAN_PREVIEW;
 			drawPreview();
-		}
+		//}
 		//status bar
 		if (update_flags&PAN_STATUS) {
 			update_flags &= ~PAN_STATUS;
@@ -393,7 +388,10 @@ void openEditor(void) {
 	}
 	
 	//Free all temporary variables
-	
+	free(tempblock_grid);
+	free(tempblock_inv);
+	free(buildarea);
+	return;
 }
 
 /* ########################################################################## */
@@ -568,6 +566,9 @@ void drawInventory(void) {
 void drawPreview(void) {
 	uint8_t ny;
 	int nx;
+	
+	static uint8_t i;
+	
 	/* buildarea is at most 96x96. Must shrink by half and render into 64x64 area */
 	gfx_SetColor(COLOR_BLUE|COLOR_DARKER);
 	gfx_Rectangle_NoClip(0,164,64,64-12);
@@ -578,7 +579,7 @@ void drawPreview(void) {
 	//+8 if 96w, +12 if 80w, +16 if 64w. Do: (128-w)/4
 	nx = (128-buildarea->width)/4+0;
 	ny = (((64-12)*2)-buildarea->height)/4+164;
-	gfx_RotatedScaledTransparentSprite_NoClip(buildarea,nx,ny,0,32);
+	gfx_RotatedScaledTransparentSprite_NoClip(buildarea,nx,ny,i++,32);
 }
 
 void drawCurSelBar(void) {
@@ -686,17 +687,11 @@ void drawPowerLimit(void) {
 	gfx_SetColor(COLOR_GREEN|COLOR_DARKER);
 	gfx_FillRectangle_NoClip((320-63),13,62,10);
 	
-	tgbo = curblueprint->blocks;
-	energy_used = energy_total = 0;
-	for (i=0;i<curblueprint->numblocks;i++) {
-		if (!tgbo[i].block_id) continue;  //Do not process empty blocks
-		tbpo = &blockobject_list[tgbo[i].block_id];
-		if (tbpo->type&(COMMAND|ENERGYSOURCE)) {
-			energy_total += tbpo->cost;
-		} else {
-			energy_used += tbpo->cost;
-		}
-	}
+	sumStats();  //In dataio.c. Using bpstats.power and bpstats.weight
+	
+	energy_used = bpstats.weight;
+	energy_total = bpstats.power;
+	
 	if (energy_used>energy_total) {
 		w=60;
 		gfx_SetColor(COLOR_RED);
@@ -748,23 +743,14 @@ void drawRightBar(void) {
 		gfx_Rectangle_NoClip(x+1,y+1,10,10);
 	} else {
 		//Show ship's total status
-		total_hp=total_atk=total_def=total_spd=total_agi=0;
-		tgbo = curblueprint->blocks;
-		for (i=0;i<curblueprint->numblocks;i++) {
-			if (!tgbo[i].block_id) continue;  //Do not process empty blocks
-			tbpo = &blockobject_list[tgbo[i].block_id];
-			total_hp  += tbpo->hp;
-			total_atk += tbpo->atk;
-			total_def  += tbpo->def;
-			total_spd  += tbpo->spd;
-			total_agi  += tbpo->agi;
-		}
+		sumStats();  //In dataio.c. Using bpstats.{hp,atk,def,agi,spd}
+		
 		y = 24+41;
-		rightBarStats("HT  PTS",&y,COLOR_GREEN,COLOR_BLACK,total_hp);
-		rightBarStats("ATTACK",&y,COLOR_WHITE,COLOR_BLACK,total_atk);
-		rightBarStats("ARMOR",&y,COLOR_BLACK,COLOR_WHITE,total_def);
-		rightBarStats("SPEED",&y,COLOR_RED,COLOR_WHITE,total_spd);
-		rightBarStats("AGILTY",&y,COLOR_BLUE,COLOR_WHITE,total_agi);
+		rightBarStats("HT  PTS",&y,COLOR_GREEN,COLOR_BLACK,bpstats.hp);
+		rightBarStats("ATTACK",&y,COLOR_WHITE,COLOR_BLACK,bpstats.atk);
+		rightBarStats("ARMOR",&y,COLOR_BLACK,COLOR_WHITE,bpstats.def);
+		rightBarStats("SPEED",&y,COLOR_RED,COLOR_WHITE,bpstats.spd);
+		rightBarStats("AGILTY",&y,COLOR_BLUE,COLOR_WHITE,bpstats.agi);
 	}
 }
 

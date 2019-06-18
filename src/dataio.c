@@ -17,6 +17,7 @@
 #include "defs.h"
 #include "dataio.h"
 #include "bdata.h"
+#include "util.h"
 
 
 /* -FILE STRUCTURE NOTES-
@@ -33,9 +34,10 @@
 
 
 /* Static stuff */
+char emptyblueprint[] = "Empty blueprint ";
 
 char *savefile = "SFuryPDt";
-blueprint_obj empty_blueprint = {0,0,"Empty file      ",NULL};
+blueprint_obj empty_blueprint = {0,0,"Empty blueprint ",NULL};
 gridblock_obj empty_gridblock = {0,0,0,0,ROT_1};
 
 /* Globals */
@@ -44,7 +46,7 @@ blueprint_obj *curblueprint;     //Almost always points to temp_blueprint
 gamedata_t gamedata;             //
 blueprint_obj temp_blueprint;    //For reading and writing
 gridblock_obj temp_bpgrid[144];  //For reading and writing
-
+stats_sum bpstats;               //For storing the sum of all the blueprint's stats
 
 
 /* Functions */
@@ -56,7 +58,8 @@ void initPlayerData(void) {
 	gamedata.blueprints_owned = BP_BASIC;
 	gamedata.default_color = DEFAULT_COLOR;
 	gamedata.credits_owned = 100;
-	gamedata.custom_blueprints_owned = 1;
+	gamedata.custom_blueprints_owned = 0;
+	createNewBlueprint();  //Initialize first user blueprint
 	//Setup inventory
 	inventory = malloc(255);
 	setMinimalInventory();
@@ -113,6 +116,7 @@ void saveGameData(void) {
 	f = openSaveWriter();
 	ti_Write(&gamedata,255,1,f);
 	ti_Write(inventory+1,255,1,f);
+	ti_CloseAll();
 }
 
 //bpslot 0-6 (maps to 1-7. There is no eigth slot. There's also no write guard */
@@ -125,6 +129,8 @@ void saveBlueprint(uint8_t bpslot) {
 	ti_Seek((2*255)+offset,SEEK_SET,f);
 	ti_Write(&temp_blueprint,sizeof temp_blueprint,1,f);
 	ti_Write(&temp_bpgrid,sizeof temp_bpgrid,1,f);
+	ti_CloseAll();
+
 }
 
 void loadBlueprint(uint8_t bpslot) {
@@ -137,19 +143,44 @@ void loadBlueprint(uint8_t bpslot) {
 	ti_Read(&temp_blueprint,sizeof temp_blueprint,1,f);
 	ti_Read(&temp_bpgrid,sizeof temp_bpgrid,1,f);
 	temp_blueprint.blocks = &temp_bpgrid;  //Reassert that pointer
+	ti_CloseAll();
 	normalizeBlueprint();
 }
 
 void loadBuiltinBlueprint(uint8_t bpslot) {
 	blueprint_obj *tbpo;
 	
+	if (bpslot <= gamedata.custom_blueprints_owned) {
+		temp_blueprint.gridlevel = 0; //Load failed. Invalidate blueprint
+		return;
+	}
+	
 	bpslot &= 7;
 	tbpo = builtin_blueprints[bpslot];
 	memcpy(&temp_blueprint,tbpo,sizeof empty_blueprint);
 	memcpy(&temp_bpgrid,tbpo->blocks,sizeof temp_bpgrid); //A little overcopying is fine
 	temp_blueprint.blocks = &temp_bpgrid;  //Reassert that pointer
+	
 	normalizeBlueprint();
 }
+
+void resetBlueprint(void) {
+	memcpy(&temp_blueprint,&empty_blueprint,sizeof empty_blueprint);
+	memset(&temp_bpgrid,0,sizeof temp_bpgrid);
+	temp_blueprint.gridlevel = gamedata.gridlevel;
+	temp_blueprint.blocks = &temp_bpgrid;
+}
+
+//Adds an empty (valid) blueprint and advances character data by one
+//Clobbers all temps.
+uint8_t createNewBlueprint(void) {
+	if (gamedata.custom_blueprints_owned>6) return 1; //No. Do not add any more.
+	resetBlueprint();
+	saveBlueprint(gamedata.custom_blueprints_owned++);
+	saveGameData();  //save the incremented ownership back to file
+	return 0;
+}
+
 
 
 void setMinimalInventory(void) {
@@ -212,8 +243,63 @@ void addGridBlock(gridblock_obj *gbo) {
 	temp_blueprint.numblocks++;
 }
 
+void sumStats(void) {
+	uint8_t i,blockid;
+	blockprop_obj *bpo;
+	
+	memset(&bpstats,0,sizeof bpstats);
+	for (i=0;i<curblueprint->numblocks;i++) {
+		if (!(blockid = curblueprint->blocks[i].block_id)) continue; //Don't do empty blocks
+		bpo = &blockobject_list[blockid];
+		bpstats.hp  += bpo->hp;
+		bpstats.atk += bpo->atk;
+		bpstats.def += bpo->def;
+		bpstats.agi += bpo->agi;
+		bpstats.spd += bpo->spd;
+		if (bpo->type & (COMMAND|ENERGYSOURCE)) bpstats.power  += bpo->cost;
+		else                                    bpstats.weight += bpo->cost;
+		if (bpo->type & COMMAND) ++bpstats.cmd;
+		if (bpo->type & WEAPON) ++bpstats.wpn;
+	}
+}
 
-
-
+//Use sprite dimensions PREVIEWBLOCK_MAX_W, PREVIEWBLOCK_MAX_H for input sprite
+void drawShipPreview(gfx_sprite_t *sprite) {
+	uint8_t i,w,h,offset,x,y;
+	gfx_UninitedSprite(tempsprite,32,32); //Pls don't overflow the stack...
+	gfx_sprite_t *srcsprite;
+	blockprop_obj *bpo;
+	gridblock_obj *gbo;
+	
+	
+	fn_FillSprite(sprite,TRANSPARENT_COLOR);
+	//On 48x48 plane, L1 to L3 is diff of 8x8 to 12x12 or 32x32 to 48x48. Mult by 4.
+	//But base diff is up to 2. That's +2 to center the offset [(12-8)/2] so...
+	//just multiply by 2? Neh. The multiply has to be the final step.
+	offset = 3-curblueprint->gridlevel;
+	
+	for (i=0;i<curblueprint->numblocks;i++) {
+		if (!((gbo=&curblueprint->blocks[i])->block_id)) continue; //No empties
+		bpo = &blockobject_list[gbo->block_id];
+		srcsprite = bpo->sprite;
+		w = tempsprite->width = bpo->sprite->width << 1;   //quick and dirty
+		h = tempsprite->height = bpo->sprite->height << 1; //div by 2 for each
+		gfx_ScaleSprite(srcsprite,bpo->sprite);  //Shrunken down for placement
+		switch (gbo->orientation&3) {
+			case ROT_0: memcpy(tempsprite,tempblock_scratch,w*h+2); break;
+			case ROT_1: gfx_RotateSpriteC(tempsprite,tempblock_scratch); break;
+			case ROT_2: gfx_RotateSpriteHalf(tempsprite,tempblock_scratch); break;
+			case ROT_3: gfx_RotateSpriteCC(tempsprite,tempblock_scratch); break;
+			default: break;
+		}
+		if (gbo->orientation&HFLIP)
+			gfx_FlipSpriteY(tempblock_scratch,tempsprite);
+		else
+			memcpy(tempsprite,tempblock_scratch,h*w+2);
+		fn_PaintSprite(tempsprite,gbo->color);
+		fn_DrawNestedSprite(tempsprite,sprite,(gbo->x+offset)<<2,(gbo->y+offset)<<2);
+	}
+	fn_FillSprite((gfx_sprite_t*)sprite,TRANSPARENT_COLOR);
+}
 
 
