@@ -123,24 +123,22 @@ void main(void) {
 		
 		gfx_SetColor(0x56); //A faded blue
 		gfx_FillTriangle(STRI_LX,STRI_TOPY,STRI_LX,STRI_BTMY,STRI_LX+24,STRI_MIDY); //L
-		gfx_SetColor(0xD6); //A faded blue
-		gfx_FillTriangle(STRI_LX+2,STRI_TOPY+4,STRI_LX+2,STRI_BTMY-4,STRI_LX+24-4,STRI_MIDY);
-		gfx_SetColor(0x56); //A faded blue
 		gfx_FillTriangle(STRI_RX,STRI_TOPY,STRI_RX,STRI_BTMY,STRI_RX-24,STRI_MIDY); //R
 		gfx_SetColor(0xD6); //A faded blue
+		gfx_FillTriangle(STRI_LX+2,STRI_TOPY+4,STRI_LX+2,STRI_BTMY-4,STRI_LX+24-4,STRI_MIDY);
 		gfx_FillTriangle(STRI_RX-2,STRI_TOPY+4,STRI_RX-2,STRI_BTMY-4,STRI_RX-24+4,STRI_MIDY);
 		
 		
 		
 		
-		
+		/*
 		gfx_SetColor(0x56); //A faded blue
 		gfx_FillRectangle(64,20,(128+64),64);              //Opt 1
 		gfx_SetColor(0x65); //A faded red
 		gfx_FillRectangle(64,(20+64+4),(128+64),64);       //Opt 2
 		gfx_FillRectangle(64,(20+64+4+64+4),(128+64),64);  //Opt 3
-		
-		
+		*/
+		renderShipFile(1,0);
 		
 		
 		
@@ -200,18 +198,59 @@ uint8_t nextShipIndex(uint8_t sidx) {
 	return 0xFF;
 }
 
+
+// No prototype. Bundle with renderShipFile
+void rsf_textline(int x,uint8_t *y, char *s, int stat) {
+	gfx_SetTextXY(x+(128+2),*y);
+	gfx_PrintString(s);
+	gfx_PrintChar(' ');
+	gfx_PrintUInt(stat,3);
+	*y += 10;
+}
 //pos: 0,1,2. 1 is the middle option
 void renderShipFile(uint8_t pos,uint8_t index) {
-	uint8_t i,ybase;
+	uint8_t i,ybase,colorbase;
 	int xbase;
 	
-	if (index==0xFF) return;  //Do not render a null entry.
+	if (getShipData(index)) return;
+	curblueprint = &temp_blueprint;
+	curblueprint->blocks = temp_bpgrid;
+	
 	
 	xbase = 64;
 	ybase = 20+pos*(64+4);
 	
-	if (index<8) gfx_SetColor(0x65);  //A faded red
-	else         gfx_SetColor(0x56);  //A faded blue
+	if (index<8) colorbase = 0xE5; //A faded red, lighter
+	else         colorbase = 0xD6; //A faded blue, lighter
+	
+	//Draw outline
+	gfx_SetColor(colorbase);
+	gfx_Rectangle_NoClip(xbase,ybase,(128+64),64);
+	gfx_SetColor(colorbase & ((1<<6)|0x3F)); //light
+	gfx_Rectangle_NoClip(xbase+1,ybase+1,(128+64-2),(64-2));
+	
+	gfx_SetColor(((colorbase>>1)&0x15) | (2<<6)); //darkshift, lighter
+	gfx_FillRectangle_NoClip(xbase+2,ybase+2,(128+64-4),(64-4));
+	//Draw blueprint name
+	gfx_SetTextFGColor(COLOR_WHITE);
+	gfx_PrintStringXY(curblueprint->name,xbase+4,ybase+8);
+	//Draw preview
+	drawShipPreview(mainsprite);
+	gfx_TransparentSprite_NoClip(mainsprite,xbase+8,ybase+14);
+	
+
+	sumStats();
+	ybase += 3;
+	rsf_textline(xbase+8,&ybase,"HP",bpstats.hp);
+	rsf_textline(xbase+8,&ybase,"PW",bpstats.power);
+	rsf_textline(xbase,&ybase,"ATK",bpstats.atk);
+	rsf_textline(xbase,&ybase,"DEF",bpstats.def);
+	rsf_textline(xbase,&ybase,"SPD",bpstats.spd);
+	rsf_textline(xbase,&ybase,"AGI",bpstats.agi);
+	
+	
+	
+	
 	
 	
 }

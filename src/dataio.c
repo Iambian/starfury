@@ -137,6 +137,11 @@ void loadBlueprint(uint8_t bpslot) {
 	ti_var_t f;
 	int offset;
 	
+	if (bpslot <= gamedata.custom_blueprints_owned) {
+		temp_blueprint.gridlevel = 0; //Load failed. Invalidate blueprint
+		return;
+	}
+	
 	f = openSaveWriter();
 	offset = bpslot * ((sizeof temp_blueprint)*(sizeof temp_bpgrid));
 	ti_Seek((2*255)+offset,SEEK_SET,f);
@@ -149,11 +154,6 @@ void loadBlueprint(uint8_t bpslot) {
 
 void loadBuiltinBlueprint(uint8_t bpslot) {
 	blueprint_obj *tbpo;
-	
-	if (bpslot <= gamedata.custom_blueprints_owned) {
-		temp_blueprint.gridlevel = 0; //Load failed. Invalidate blueprint
-		return;
-	}
 	
 	bpslot &= 7;
 	tbpo = builtin_blueprints[bpslot];
@@ -266,7 +266,7 @@ void sumStats(void) {
 //Use sprite dimensions PREVIEWBLOCK_MAX_W, PREVIEWBLOCK_MAX_H for input sprite
 void drawShipPreview(gfx_sprite_t *sprite) {
 	uint8_t i,w,h,offset,x,y;
-	gfx_UninitedSprite(tempsprite,32,32); //Pls don't overflow the stack...
+	gfx_UninitedSprite(tempsprite,16,16); //Pls don't overflow the stack...
 	gfx_sprite_t *srcsprite;
 	blockprop_obj *bpo;
 	gridblock_obj *gbo;
@@ -277,16 +277,16 @@ void drawShipPreview(gfx_sprite_t *sprite) {
 	//But base diff is up to 2. That's +2 to center the offset [(12-8)/2] so...
 	//just multiply by 2? Neh. The multiply has to be the final step.
 	offset = 3-curblueprint->gridlevel;
-	
+	fn_FillSprite((gfx_sprite_t*)sprite,TRANSPARENT_COLOR);
 	for (i=0;i<curblueprint->numblocks;i++) {
 		if (!((gbo=&curblueprint->blocks[i])->block_id)) continue; //No empties
 		bpo = &blockobject_list[gbo->block_id];
-		srcsprite = bpo->sprite;
+		if (!(srcsprite = bpo->sprite)) continue;  //No out of range (NULL) sprites
 		w = tempsprite->width = bpo->sprite->width << 1;   //quick and dirty
 		h = tempsprite->height = bpo->sprite->height << 1; //div by 2 for each
-		gfx_ScaleSprite(srcsprite,bpo->sprite);  //Shrunken down for placement
+		gfx_ScaleSprite(srcsprite,tempsprite);  //Shrunken down for placement
 		switch (gbo->orientation&3) {
-			case ROT_0: memcpy(tempsprite,tempblock_scratch,w*h+2); break;
+			case ROT_0: memcpy(tempblock_scratch,tempsprite,w*h+2); break;
 			case ROT_1: gfx_RotateSpriteC(tempsprite,tempblock_scratch); break;
 			case ROT_2: gfx_RotateSpriteHalf(tempsprite,tempblock_scratch); break;
 			case ROT_3: gfx_RotateSpriteCC(tempsprite,tempblock_scratch); break;
@@ -299,7 +299,6 @@ void drawShipPreview(gfx_sprite_t *sprite) {
 		fn_PaintSprite(tempsprite,gbo->color);
 		fn_DrawNestedSprite(tempsprite,sprite,(gbo->x+offset)<<2,(gbo->y+offset)<<2);
 	}
-	fn_FillSprite((gfx_sprite_t*)sprite,TRANSPARENT_COLOR);
 }
 
 
