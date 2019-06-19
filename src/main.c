@@ -52,6 +52,7 @@ void error(char *msg);
 gfx_sprite_t *mainsprite;
 gfx_sprite_t *altsprite;
 gfx_sprite_t *tempblock_scratch;
+gfx_sprite_t *tempblock_smallscratch;
 
 /* Globals and defines that will be moved out to a new file once done testing */
 uint8_t shipselidx;
@@ -82,6 +83,7 @@ void main(void) {
 	mainsprite = gfx_MallocSprite(PREVIEWBLOCK_MAX_W,PREVIEWBLOCK_MAX_H);
 	altsprite = gfx_MallocSprite(PREVIEWBLOCK_MAX_W,PREVIEWBLOCK_MAX_H);
 	tempblock_scratch = gfx_MallocSprite(PREVIEWBLOCK_MAX_W,PREVIEWBLOCK_MAX_H);
+	tempblock_smallscratch = gfx_MallocSprite(PREVIEWBLOCK_MAX_W/2,PREVIEWBLOCK_MAX_H/2);
 
 	
 	ti_CloseAll();
@@ -233,7 +235,7 @@ void renderShipFile(uint8_t pos,uint8_t index) {
 	gfx_FillRectangle_NoClip(xbase+2,ybase+2,(128+64-4),(64-4));
 	//Draw blueprint name
 	gfx_SetTextFGColor(COLOR_WHITE);
-	gfx_PrintStringXY(curblueprint->name,xbase+4,ybase+8);
+	gfx_PrintStringXY(curblueprint->name,xbase+4,ybase+2);
 	//Draw preview
 	drawShipPreview(mainsprite);
 	gfx_TransparentSprite_NoClip(mainsprite,xbase+8,ybase+14);

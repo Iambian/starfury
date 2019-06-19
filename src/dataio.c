@@ -264,40 +264,46 @@ void sumStats(void) {
 }
 
 //Use sprite dimensions PREVIEWBLOCK_MAX_W, PREVIEWBLOCK_MAX_H for input sprite
-void drawShipPreview(gfx_sprite_t *sprite) {
-	uint8_t i,w,h,offset,x,y;
-	gfx_UninitedSprite(tempsprite,16,16); //Pls don't overflow the stack...
+void drawShipPreview(gfx_sprite_t *insprite) {
+	uint8_t i,w,h,offset,x,y,blockid;
 	gfx_sprite_t *srcsprite;
 	blockprop_obj *bpo;
 	gridblock_obj *gbo;
 	
-	
-	fn_FillSprite(sprite,TRANSPARENT_COLOR);
+	if (!curblueprint->gridlevel) return;
 	//On 48x48 plane, L1 to L3 is diff of 8x8 to 12x12 or 32x32 to 48x48. Mult by 4.
 	//But base diff is up to 2. That's +2 to center the offset [(12-8)/2] so...
 	//just multiply by 2? Neh. The multiply has to be the final step.
 	offset = 3-curblueprint->gridlevel;
-	fn_FillSprite((gfx_sprite_t*)sprite,TRANSPARENT_COLOR);
+	fn_FillSprite(insprite,TRANSPARENT_COLOR);
 	for (i=0;i<curblueprint->numblocks;i++) {
-		if (!((gbo=&curblueprint->blocks[i])->block_id)) continue; //No empties
-		bpo = &blockobject_list[gbo->block_id];
-		if (!(srcsprite = bpo->sprite)) continue;  //No out of range (NULL) sprites
-		w = tempsprite->width = bpo->sprite->width << 1;   //quick and dirty
-		h = tempsprite->height = bpo->sprite->height << 1; //div by 2 for each
-		gfx_ScaleSprite(srcsprite,tempsprite);  //Shrunken down for placement
+		blockid = curblueprint->blocks[i].block_id;
+		if (!blockid) continue;
+		gbo = &curblueprint->blocks[i];
+		bpo = &blockobject_list[blockid];
+		srcsprite = bpo->sprite;
+		//if (!((gbo=&curblueprint->blocks[i])->block_id)) continue; //No empties
+		//bpo = &blockobject_list[gbo->block_id];
+		//if (!(srcsprite = bpo->sprite)) continue;  //No out of range (NULL) sprites
+		w = tempblock_smallscratch->width = srcsprite->width >> 1;   //quick and dirty
+		h = tempblock_smallscratch->height = srcsprite->height >> 1; //div by 2 for each
+		dbg_sprintf(dbgout,"Item %i, (w,h)=(%i,%i)\n",i,w,h);
+		//Shrink down and move to tempsprite
+		gfx_ScaleSprite(srcsprite,tempblock_smallscratch);
 		switch (gbo->orientation&3) {
-			case ROT_0: memcpy(tempblock_scratch,tempsprite,w*h+2); break;
-			case ROT_1: gfx_RotateSpriteC(tempsprite,tempblock_scratch); break;
-			case ROT_2: gfx_RotateSpriteHalf(tempsprite,tempblock_scratch); break;
-			case ROT_3: gfx_RotateSpriteCC(tempsprite,tempblock_scratch); break;
+			//roatate, flip, or copy from tempsprite and move to tempblock_scratch
+			case ROT_0: memcpy(tempblock_scratch,tempblock_smallscratch,w*h+2); break;
+			case ROT_1: gfx_RotateSpriteC(tempblock_smallscratch,tempblock_scratch); break;
+			case ROT_2: gfx_RotateSpriteHalf(tempblock_smallscratch,tempblock_scratch); break;
+			case ROT_3: gfx_RotateSpriteCC(tempblock_smallscratch,tempblock_scratch); break;
 			default: break;
 		}
 		if (gbo->orientation&HFLIP)
-			gfx_FlipSpriteY(tempblock_scratch,tempsprite);
+			gfx_FlipSpriteY(tempblock_scratch,tempblock_smallscratch);
 		else
-			memcpy(tempsprite,tempblock_scratch,h*w+2);
-		fn_PaintSprite(tempsprite,gbo->color);
-		fn_DrawNestedSprite(tempsprite,sprite,(gbo->x+offset)<<2,(gbo->y+offset)<<2);
+			memcpy(tempblock_smallscratch,tempblock_scratch,h*w+2);
+		fn_PaintSprite(tempblock_smallscratch,gbo->color);
+		fn_DrawNestedSprite(tempblock_smallscratch,insprite,(gbo->x+offset)<<2,(gbo->y+offset)<<2);
 	}
 }
 
