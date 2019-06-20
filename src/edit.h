@@ -1,4 +1,4 @@
-/* Declarations for the assembly routines found in util.asm */
+/* Cross file declaration(s) for the ship editor */
 
 #ifndef __edit_cutil__
 #define __edit_cutil__

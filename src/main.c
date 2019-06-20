@@ -33,6 +33,7 @@
 #include "dataio.h"
 #include "edit.h"
 #include "gfx/out/gui_gfx.h"
+#include "menu.h"
 
 /* Put your function prototypes here */
 
@@ -56,6 +57,10 @@ gfx_sprite_t *tempblock_smallscratch;
 
 /* Globals and defines that will be moved out to a new file once done testing */
 uint8_t shipselidx;
+
+
+const char *bpdefault[] = {"Options","Fly this ship","Copy to custom blueprint"};
+const char *bpcustom[] = {"Options","Fly this ship","Clear this blueprint","Edit this blueprint"};
 
 
 
@@ -112,6 +117,17 @@ void main(void) {
 		kc = kb_Data[1];
 		gfx_FillScreen(COLOR_BLACK);
 		if (kc&kb_Mode) { keywait(); break; }
+		
+		if (kc&kb_2nd) {
+			if (shipselidx<8) {
+				t = staticMenu(bpdefault,3);
+				
+			} else {
+				t = staticMenu(bpcustom,3);
+				
+			}
+			
+		}
 		
 		if (kd == kb_Up) {
 			if (shipselidx) shipselidx = prevShipIndex(shipselidx);
