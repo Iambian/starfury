@@ -123,7 +123,7 @@ void main(void) {
 				t = staticMenu(bpdefault,3);
 				
 			} else {
-				t = staticMenu(bpcustom,3);
+				t = staticMenu(bpcustom,4);
 				
 			}
 			
@@ -131,10 +131,12 @@ void main(void) {
 		
 		if (kd == kb_Up) {
 			if (shipselidx) shipselidx = prevShipIndex(shipselidx);
+			dbg_sprintf(dbgout,"idx: %i\n",shipselidx);
 		}
 		if (kd == kb_Down) {
-			if (0xFF != nextShipIndex(shipselidx))
-				shipselidx = nextShipIndex(shipselidx);
+			if (0xFF != (t=nextShipIndex(shipselidx)))
+				shipselidx = t;
+			dbg_sprintf(dbgout,"idx: %i\n",shipselidx);
 		}
 		
 		
@@ -146,17 +148,9 @@ void main(void) {
 		gfx_FillTriangle(STRI_LX+2,STRI_TOPY+4,STRI_LX+2,STRI_BTMY-4,STRI_LX+24-4,STRI_MIDY);
 		gfx_FillTriangle(STRI_RX-2,STRI_TOPY+4,STRI_RX-2,STRI_BTMY-4,STRI_RX-24+4,STRI_MIDY);
 		
-		
-		
-		
-		/*
-		gfx_SetColor(0x56); //A faded blue
-		gfx_FillRectangle(64,20,(128+64),64);              //Opt 1
-		gfx_SetColor(0x65); //A faded red
-		gfx_FillRectangle(64,(20+64+4),(128+64),64);       //Opt 2
-		gfx_FillRectangle(64,(20+64+4+64+4),(128+64),64);  //Opt 3
-		*/
-		renderShipFile(1,0);
+		renderShipFile(0,prevShipIndex(shipselidx));
+		renderShipFile(1,shipselidx);
+		renderShipFile(2,nextShipIndex(shipselidx));
 		
 		
 		
@@ -231,6 +225,7 @@ void renderShipFile(uint8_t pos,uint8_t index) {
 	int xbase;
 	
 	if (getShipData(index)) return;
+	dbg_sprintf(dbgout,"Rendering... \n");
 	curblueprint = &temp_blueprint;
 	curblueprint->blocks = temp_bpgrid;
 	

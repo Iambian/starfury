@@ -137,11 +137,13 @@ void loadBlueprint(uint8_t bpslot) {
 	ti_var_t f;
 	int offset;
 	
-	if (bpslot <= gamedata.custom_blueprints_owned) {
+	//dbg_sprintf(dbgout,"loadBluerpint(%i)\n",bpslot);
+
+	if (bpslot >= gamedata.custom_blueprints_owned) {
 		temp_blueprint.gridlevel = 0; //Load failed. Invalidate blueprint
 		return;
 	}
-	
+	//dbg_sprintf(dbgout,"lbp loading...\n");
 	f = openSaveWriter();
 	offset = bpslot * ((sizeof temp_blueprint)*(sizeof temp_bpgrid));
 	ti_Seek((2*255)+offset,SEEK_SET,f);
@@ -149,7 +151,9 @@ void loadBlueprint(uint8_t bpslot) {
 	ti_Read(&temp_bpgrid,sizeof temp_bpgrid,1,f);
 	temp_blueprint.blocks = &temp_bpgrid;  //Reassert that pointer
 	ti_CloseAll();
+	//dbg_sprintf(dbgout,"lbp loaded with gridlevel %i\n",temp_blueprint.gridlevel);
 	normalizeBlueprint();
+	//dbg_sprintf(dbgout,"lbp normalized with gridlevel %i\n",temp_blueprint.gridlevel);
 }
 
 void loadBuiltinBlueprint(uint8_t bpslot) {
@@ -287,7 +291,7 @@ void drawShipPreview(gfx_sprite_t *insprite) {
 		//if (!(srcsprite = bpo->sprite)) continue;  //No out of range (NULL) sprites
 		w = tempblock_smallscratch->width = srcsprite->width >> 1;   //quick and dirty
 		h = tempblock_smallscratch->height = srcsprite->height >> 1; //div by 2 for each
-		dbg_sprintf(dbgout,"Item %i, (w,h)=(%i,%i)\n",i,w,h);
+		//dbg_sprintf(dbgout,"Item %i, (w,h)=(%i,%i)\n",i,w,h);
 		//Shrink down and move to tempsprite
 		gfx_ScaleSprite(srcsprite,tempblock_smallscratch);
 		switch (gbo->orientation&3) {

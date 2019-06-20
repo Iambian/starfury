@@ -51,8 +51,9 @@ uint8_t staticMenu(char **sarr,uint8_t numstrings) {
 		kc = kb_Data[1];
 		
 		menuRectangle(xbase,ybase,width,height,cbase);
-		gfx_SetColor(cbase);
-		gfx_HorizLine(xbase+3,ybase+14,width-8); //Header/options divider line
+		gfx_SetColor(cbase|COLOR_LIGHTER);
+		//THICC horizontal divider line between header and menu options
+		for (i=0;i<3;i++) gfx_HorizLine(xbase+6,ybase+12+i,width-12);
 		gfx_SetTextFGColor(0x3C|COLOR_LIGHT);    //Picked using color contrast tool
 		gfx_PrintStringXY(sarr[0],xbase+2,ybase+3);  //Header
 		
@@ -64,6 +65,7 @@ uint8_t staticMenu(char **sarr,uint8_t numstrings) {
 		tempx = xbase+2;
 		tempy = ybase+16;
 		gfx_SetTextFGColor(COLOR_WHITE|COLOR_LIGHTER);
+		gfx_SetColor(cbase|COLOR_DARK);
 		for (i=1;i<numstrings;i++) {
 			if (i==index) gfx_FillRectangle_NoClip(tempx,tempy,width-4,10);
 			gfx_PrintStringXY(sarr[i],tempx+(width-gfx_GetStringWidth(sarr[i]))/2,tempy+1);
@@ -86,9 +88,10 @@ int getLongestLength(char **sarr, uint8_t numstrings) {
 	int largest_width,current_width;
 	largest_width = 0;
 	do {
+		--numstrings;
 		if ((current_width = gfx_GetStringWidth(sarr[numstrings])) > largest_width)
 			largest_width = current_width;
-	} while (--numstrings);
+	} while (numstrings);
 	return largest_width;
 }
 
@@ -97,7 +100,7 @@ void menuRectangle(int x,uint8_t y,int w, uint8_t h, uint8_t basecolor) {
 	gfx_Rectangle_NoClip(x,y,w,h);
 	gfx_SetColor(basecolor|COLOR_DARK);
 	gfx_Rectangle_NoClip(++x,++y,w-=2,h-=2);
-	gfx_SetColor(((basecolor>>1)&0x15)|COLOR_LIGHTER); //darkshift, lighter
+	gfx_SetColor(((basecolor>>1)&0x15)|COLOR_DARK); //darkshift, lighter
 	gfx_FillRectangle(++x,++y,w-=2,h-=2);
 }
 
