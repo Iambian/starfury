@@ -35,6 +35,7 @@
 
 /* Static stuff */
 char emptyblueprint[] = "Empty blueprint ";
+char *emptystring = "";
 
 char *savefile = "SFuryPDt";
 blueprint_obj empty_blueprint = {0,0,"Empty blueprint ",NULL};
@@ -312,3 +313,19 @@ void drawShipPreview(gfx_sprite_t *insprite) {
 }
 
 
+//Uses the fact that the TI-OS keeps all files in the same memory 
+void loadAllShipNames(char **namearray) {
+	uint8_t i;
+	int skiplen;
+	ti_var_t f;
+	blueprint_obj *bpo;
+	
+	if (!(f = openSaveReader())) for (i=1;i<8;i++) namearray[i]=emptystring;
+	ti_Seek((2*255),SEEK_SET,f);
+	for (i=1;i<8;i++) {
+		bpo = ti_GetDataPtr(f);
+		namearray[i] = &(bpo->name);
+		skiplen = bpo->numblocks * (sizeof empty_gridblock);
+		ti_Seek((sizeof empty_blueprint) + skiplen,SEEK_CUR,f);
+	}
+}

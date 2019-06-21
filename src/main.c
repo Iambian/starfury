@@ -58,10 +58,13 @@ gfx_sprite_t *tempblock_smallscratch;
 /* Globals and defines that will be moved out to a new file once done testing */
 uint8_t shipselidx;
 
+const char *bpcopywhere = "Copy blueprint where?";
 
 const char *bpdefault[] = {"Options","Fly this ship","Copy to custom blueprint"};
-const char *bpcustom[] = {"Options","Fly this ship","Clear this blueprint","Edit this blueprint"};
-
+const char *bpcustom[] = {"Options","Fly this ship","Edit this blueprint","Rename this blueprint","Clear this blueprint"};
+const char *bpnothingthere[]= {"You fool!","You can't fly a ship","without having built","anything yet!"};
+char **bpcopy;
+const char *bpoverwritten[] = {"Notice","File has been overwritten!"};
 
 
 #define STRI_TOPY (20+64+4+((64-32)/2))
@@ -106,7 +109,8 @@ void main(void) {
 	
 	//Initialize selector render
 	shipselidx = 0;  //You will always have a starting blueprint
-	
+	bpcopy = malloc(sizeof(bpcopywhere)*8); //Need 8 char pointer slots
+	bpcopy[0] = bpcopywhere;
 	
 	
 	
@@ -115,19 +119,38 @@ void main(void) {
 		kb_Scan();
 		kd = kb_Data[7];
 		kc = kb_Data[1];
-		gfx_FillScreen(COLOR_BLACK);
 		if (kc&kb_Mode) { keywait(); break; }
 		
 		if (kc&kb_2nd) {
 			if (shipselidx<8) {
 				t = staticMenu(bpdefault,3);
-				
+				if (2==t) {
+					loadAllShipNames(bpcopy);
+					tt = staticMenu(bpcopy,1+gamedata.custom_blueprints_owned);
+					if (tt) {
+						getShipData(shipselidx);
+						saveBlueprint(tt-1);
+						alert(bpoverwritten,2);
+					}
+				}
 			} else {
-				t = staticMenu(bpcustom,4);
+				t = staticMenu(bpcustom,5);
+				getShipData(shipselidx);
+				if (1==t) {
+					if (!temp_blueprint.numblocks) {
+						alert(bpnothingthere,4);
+					} else if (0) {
+						//Fill out other conditions in case you try to fly a ship
+						//that won't actually fly.
+					}
+					
+				}
 				
 			}
 			
 		}
+
+		gfx_FillScreen(COLOR_BLACK);
 		
 		if (kd == kb_Up) {
 			if (shipselidx) shipselidx = prevShipIndex(shipselidx);
@@ -213,7 +236,7 @@ uint8_t nextShipIndex(uint8_t sidx) {
 
 // No prototype. Bundle with renderShipFile
 void rsf_textline(int x,uint8_t *y, char *s, int stat) {
-	gfx_SetTextXY(x+(128+2),*y);
+	gfx_SetTextXY(x,*y);
 	gfx_PrintString(s);
 	gfx_PrintChar(' ');
 	gfx_PrintUInt(stat,3);
@@ -221,7 +244,7 @@ void rsf_textline(int x,uint8_t *y, char *s, int stat) {
 }
 //pos: 0,1,2. 1 is the middle option
 void renderShipFile(uint8_t pos,uint8_t index) {
-	uint8_t i,ybase,colorbase;
+	uint8_t i,ybase,colorbase,ytemp;
 	int xbase;
 	
 	if (getShipData(index)) return;
@@ -229,38 +252,36 @@ void renderShipFile(uint8_t pos,uint8_t index) {
 	curblueprint = &temp_blueprint;
 	curblueprint->blocks = temp_bpgrid;
 	
-	
+	//new dims: 30 px top and bottom, 12px inbetween
 	xbase = 64;
-	ybase = 20+pos*(64+4);
+	ybase = 30+pos*(52+12);
 	
-	if (index<8) colorbase = 0xE5; //A faded red, lighter
-	else         colorbase = 0xD6; //A faded blue, lighter
+	if (index<8) colorbase = 0x25; //A faded red, base
+	else         colorbase = 0x16; //A faded blue, lighter
 	
 	//Draw outline
-	gfx_SetColor(colorbase);
-	gfx_Rectangle_NoClip(xbase,ybase,(128+64),64);
-	gfx_SetColor(colorbase & ((1<<6)|0x3F)); //light
-	gfx_Rectangle_NoClip(xbase+1,ybase+1,(128+64-2),(64-2));
-	
-	gfx_SetColor(((colorbase>>1)&0x15) | (2<<6)); //darkshift, lighter
-	gfx_FillRectangle_NoClip(xbase+2,ybase+2,(128+64-4),(64-4));
+	menuRectangle(xbase,ybase,192,52,colorbase);
 	//Draw blueprint name
 	gfx_SetTextFGColor(COLOR_WHITE);
-	gfx_PrintStringXY(curblueprint->name,xbase+4,ybase+2);
+	gfx_PrintStringXY(curblueprint->name,xbase+(50+8),ybase+4);
+	//Draw divider line between blueprint name and stats
+	gfx_SetColor(colorbase|COLOR_LIGHTER);
+	gfx_HorizLine(xbase+(48+4),ybase+15,(144-8));
 	//Draw preview
 	drawShipPreview(mainsprite);
-	gfx_TransparentSprite_NoClip(mainsprite,xbase+8,ybase+14);
+	gfx_TransparentSprite_NoClip(mainsprite,xbase+2,ybase+2);
 	
-
-	sumStats();
-	ybase += 3;
-	rsf_textline(xbase+8,&ybase,"HP",bpstats.hp);
-	rsf_textline(xbase+8,&ybase,"PW",bpstats.power);
-	rsf_textline(xbase,&ybase,"ATK",bpstats.atk);
-	rsf_textline(xbase,&ybase,"DEF",bpstats.def);
-	rsf_textline(xbase,&ybase,"SPD",bpstats.spd);
-	rsf_textline(xbase,&ybase,"AGI",bpstats.agi);
-	
+	if (curblueprint->numblocks) {
+		sumStats();
+		ytemp = ybase + (2+10+8);
+		rsf_textline(xbase+(48+14+8),&ytemp,"HP",bpstats.hp);
+		rsf_textline(xbase+(48+14),&ytemp,"ATK",bpstats.atk);
+		rsf_textline(xbase+(48+14),&ytemp,"DEF",bpstats.def);
+		ytemp = ybase + (2+10+8);
+		rsf_textline(xbase+(48+14+51+14+8),&ytemp,"PW",bpstats.power);
+		rsf_textline(xbase+(48+14+51+14),&ytemp,"SPD",bpstats.spd);
+		rsf_textline(xbase+(48+14+51+14),&ytemp,"AGI",bpstats.agi);
+	}
 	
 	
 	

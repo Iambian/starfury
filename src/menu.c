@@ -18,7 +18,7 @@
 #include "menu.h"
 
 int getLongestLength(char **sarr, uint8_t numstrings);
-
+void drawMenuStrings(char **sarr, uint8_t numstrings,int xbase, uint8_t ybase, int width, uint8_t index, uint8_t cbase);
 
 
 
@@ -50,38 +50,69 @@ uint8_t staticMenu(char **sarr,uint8_t numstrings) {
 		kd = kb_Data[7];
 		kc = kb_Data[1];
 		
-		menuRectangle(xbase,ybase,width,height,cbase);
-		gfx_SetColor(cbase|COLOR_LIGHTER);
-		//THICC horizontal divider line between header and menu options
-		for (i=0;i<3;i++) gfx_HorizLine(xbase+6,ybase+12+i,width-12);
-		gfx_SetTextFGColor(0x3C|COLOR_LIGHT);    //Picked using color contrast tool
-		gfx_PrintStringXY(sarr[0],xbase+2,ybase+3);  //Header
-		
 		if (kc&kb_Mode) { index = 0; break;}
 		if (kc&kb_2nd) break;
 		if ((kd&kb_Up) && (!--index)) index = numstrings-1;
 		if ((kd&kb_Down) && (++index == numstrings)) index = 1;
 		
-		tempx = xbase+2;
-		tempy = ybase+16;
-		gfx_SetTextFGColor(COLOR_WHITE|COLOR_LIGHTER);
-		gfx_SetColor(cbase|COLOR_DARK);
-		for (i=1;i<numstrings;i++) {
-			if (i==index) gfx_FillRectangle_NoClip(tempx,tempy,width-4,10);
-			gfx_PrintStringXY(sarr[i],tempx+(width-gfx_GetStringWidth(sarr[i]))/2,tempy+1);
-			tempy += 10;
-		}
-		
-		gfx_BlitRectangle(gfx_buffer,xbase,ybase,width,height);
+		drawMenuStrings(sarr,numstrings,xbase,ybase,width,index,cbase);
 		
 		if (kd|kc) keywait();
 	}
 	return index;
 }
-void alert(char *s) {
+
+//We don't have newlines so we've got to do it via array of strings.
+//sarr is structured exactly like menus, except there are no decisions
+//and any key pressed will close the notice
+void alert(char **sarr,uint8_t numstrings) {
+	kb_key_t kc,kd;
+	int width,xbase,tempx,strwidth;
+	uint8_t i,height,ybase,cbase,index,tempy;
+	
+	width = getLongestLength(sarr,numstrings)+8;
+	height = (4+(numstrings-1)*10+16); //Border 4px, header 16px, others 10px
+	xbase = (LCD_WIDTH-width)/2;
+	ybase = (LCD_HEIGHT-height)/2;
+	cbase = 0x25; //A faded red, set to darkest.
+	
+	keywait();
+	do {
+		kb_Scan();
+		kd = kb_Data[7];
+		kc = kb_Data[1];
+		drawMenuStrings(sarr,numstrings,xbase,ybase,width,0,cbase);
+	} while (!(kd|kc));
+	keywait();
 	
 }
 
+void drawMenuStrings(char **sarr, uint8_t numstrings,int xbase, uint8_t ybase, int width, uint8_t index, uint8_t cbase) {
+	uint8_t i,height,ytemp;
+	int xtemp;
+	
+	height = (4+(numstrings-1)*10+16); //Border 4px, header 16px, others 10px
+	
+	//Draw the menubox
+	menuRectangle(xbase,ybase,width,height,cbase);
+	//Draw header area
+	gfx_SetColor(cbase|COLOR_LIGHTER);
+	gfx_HorizLine(xbase+6,ybase+13,width-12);
+	gfx_SetTextFGColor(0x3C|COLOR_LIGHT);    //Picked using color contrast tool
+	gfx_PrintStringXY(sarr[0],xbase+2,ybase+3);  //Header
+	//Draw menu options
+	xtemp = xbase+2;
+	ytemp = ybase+16;
+	gfx_SetTextFGColor(COLOR_WHITE|COLOR_LIGHTER);
+	gfx_SetColor(cbase|COLOR_DARK);
+	for (i=1;i<numstrings;i++) {
+		if (i==index) gfx_FillRectangle_NoClip(xtemp,ytemp,width-4,10);
+		gfx_PrintStringXY(sarr[i],xtemp+(width-gfx_GetStringWidth(sarr[i]))/2-2,ytemp+1);
+		ytemp += 10;
+	}
+	//Copy results to screen
+	gfx_BlitRectangle(gfx_buffer,xbase,ybase,width,height);
+}
 
 
 int getLongestLength(char **sarr, uint8_t numstrings) {

@@ -7,7 +7,7 @@
 
 
 uint8_t staticMenu(char **sarr,uint8_t numstrings);
-void alert(char *s);
+void alert(char **sarr,uint8_t numstrings);
 void menuRectangle(int x,uint8_t y,int w, uint8_t h, uint8_t basecolor);
 
 #endif

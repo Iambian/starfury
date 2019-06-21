@@ -56,5 +56,6 @@ void normalizeBlueprint(void);
 void addGridBlock(gridblock_obj *gbo);
 void sumStats(void);
 void drawShipPreview(gfx_sprite_t *sprite);
+void loadAllShipNames(char **namearray); //Assumes file doesn't move between read and render
 
 #endif
