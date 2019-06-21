@@ -99,7 +99,7 @@ void drawMenuStrings(char **sarr, uint8_t numstrings,int xbase, uint8_t ybase, i
 	gfx_SetColor(cbase|COLOR_LIGHTER);
 	gfx_HorizLine(xbase+6,ybase+13,width-12);
 	gfx_SetTextFGColor(0x3C|COLOR_LIGHT);    //Picked using color contrast tool
-	gfx_PrintStringXY(sarr[0],xbase+2,ybase+3);  //Header
+	gfx_PrintStringXY(sarr[0],xbase+4,ybase+3);  //Header
 	//Draw menu options
 	xtemp = xbase+2;
 	ytemp = ybase+16;

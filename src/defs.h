@@ -6,7 +6,7 @@
 
 #define VERSION_MAIN 0
 #define VERSION_SUB 01
-#define FILE_VERSION 1
+#define FILE_VERSION 3
 
 /* DEFINES FOR GAME STATE */
 #define GS_STATE_MASK 0xF0

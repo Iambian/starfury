@@ -52,18 +52,43 @@ stats_sum bpstats;               //For storing the sum of all the blueprint's st
 
 /* Functions */
 
+
+
+
 void initPlayerData(void) {
-	//Setup game data
+	ti_var_t f;
+	
+	//dbg_sprintf(dbgout,"Initializing game data\n");
+	inventory = malloc(256);
+	//Attempt to load game data from file
 	gamedata.file_version = FILE_VERSION;
-	gamedata.gridlevel = 1;
-	gamedata.blueprints_owned = BP_BASIC;
-	gamedata.default_color = DEFAULT_COLOR;
-	gamedata.credits_owned = 100;
-	gamedata.custom_blueprints_owned = 0;
-	createNewBlueprint();  //Initialize first user blueprint
-	//Setup inventory
-	inventory = malloc(255);
-	setMinimalInventory();
+	ti_CloseAll();
+	f = ti_Open(savefile,"r");  //Open for reading
+	if (f && (ti_GetC(f)==FILE_VERSION)) {
+		//dbg_sprintf(dbgout,"Init from file\n");
+		ti_Rewind(f);
+		ti_Read(&gamedata,255,1,f);
+		ti_Read(inventory+1,255,1,f);
+		saveGameData();
+	} else {
+		//Setup game data
+		//dbg_sprintf(dbgout,"Init from setup\n");
+		gamedata.gridlevel = 1;
+		gamedata.blueprints_owned = BP_BASIC;
+		gamedata.default_color = DEFAULT_COLOR;
+		gamedata.credits_owned = 100;
+		gamedata.custom_blueprints_owned = 0;
+		createNewBlueprint();  //Initialize first user blueprint
+		//Setup inventory
+		setMinimalInventory();
+		saveGameData();
+		f = openSaveReader();
+		ti_GetC(f);
+		ti_Read(&gamedata+1,254,1,f);
+		ti_Read(inventory+1,255,1,f);
+		saveGameData();
+		
+	}
 	//Setup blueprint and grid area
 	curblueprint = &temp_blueprint;
 	memcpy(curblueprint,&empty_blueprint,sizeof empty_blueprint);
@@ -76,9 +101,11 @@ ti_var_t openSaveReader(void) {
 	uint8_t r,i;
 	ti_var_t f;
 	
+	//dbg_sprintf(dbgout,"Opening save reader\n");
 	ti_CloseAll();
 	f = ti_Open(savefile,"r");  //Open for reading
 	if (!f || (ti_GetC(f)!=FILE_VERSION)) {
+		//dbg_sprintf(dbgout,"Read failure, reiniting file\n");
 		//Read failure. Open it for writing
 		f = ti_Open(savefile,"w");
 		if (!f) return 0;  //Open/create failure. File is unopenable.
@@ -86,11 +113,14 @@ ti_var_t openSaveReader(void) {
 		r = 1;
 		r &= ti_Write(&gamedata,255,1,f);
 		r &= ti_Write(inventory+1,255,1,f);
+		temp_blueprint.gridlevel = 0;  //Invalidate current temp blueprint
 		for (i=0;i<7;i++) {
 			r &= ti_Write(&temp_blueprint,sizeof temp_blueprint,1,f);
 			r &= ti_Write(&temp_bpgrid,sizeof temp_bpgrid,1,f);
 		}
 		if (!r) return 0;
+		//dbg_sprintf(dbgout,"File initialized\n");
+
 		ti_CloseAll();
 		f = ti_Open(savefile,"r");
 		if (!f) return 0; //After all that and it still won't open? bleh.
@@ -103,6 +133,7 @@ ti_var_t openSaveReader(void) {
 ti_var_t openSaveWriter(void) {
 	ti_var_t f;
 	
+	//dbg_sprintf(dbgout,"Opening save writer\n");
 	openSaveReader();
 	ti_CloseAll();
 	f = ti_Open(savefile,"a+");
@@ -115,6 +146,8 @@ void saveGameData(void) {
 	ti_var_t f;
 	
 	f = openSaveWriter();
+	//dbg_sprintf(dbgout,"Saving gamedata and inventory\n");
+	//dbg_sprintf(dbgout,"blueprints owned: %i\n",gamedata.blueprints_owned);
 	ti_Write(&gamedata,255,1,f);
 	ti_Write(inventory+1,255,1,f);
 	ti_CloseAll();
@@ -138,23 +171,23 @@ void loadBlueprint(uint8_t bpslot) {
 	ti_var_t f;
 	int offset;
 	
-	//dbg_sprintf(dbgout,"loadBluerpint(%i)\n",bpslot);
+	////dbg_sprintf(dbgout,"loadBluerpint(%i)\n",bpslot);
 
 	if (bpslot >= gamedata.custom_blueprints_owned) {
 		temp_blueprint.gridlevel = 0; //Load failed. Invalidate blueprint
 		return;
 	}
-	//dbg_sprintf(dbgout,"lbp loading...\n");
-	f = openSaveWriter();
+	////dbg_sprintf(dbgout,"lbp loading...\n");
+	f = openSaveReader();
 	offset = bpslot * ((sizeof temp_blueprint)*(sizeof temp_bpgrid));
 	ti_Seek((2*255)+offset,SEEK_SET,f);
 	ti_Read(&temp_blueprint,sizeof temp_blueprint,1,f);
 	ti_Read(&temp_bpgrid,sizeof temp_bpgrid,1,f);
 	temp_blueprint.blocks = &temp_bpgrid;  //Reassert that pointer
 	ti_CloseAll();
-	//dbg_sprintf(dbgout,"lbp loaded with gridlevel %i\n",temp_blueprint.gridlevel);
+	////dbg_sprintf(dbgout,"lbp loaded with gridlevel %i\n",temp_blueprint.gridlevel);
 	normalizeBlueprint();
-	//dbg_sprintf(dbgout,"lbp normalized with gridlevel %i\n",temp_blueprint.gridlevel);
+	////dbg_sprintf(dbgout,"lbp normalized with gridlevel %i\n",temp_blueprint.gridlevel);
 }
 
 void loadBuiltinBlueprint(uint8_t bpslot) {
@@ -206,7 +239,7 @@ void setMinimalInventory(void) {
 				for (k=0;k<(tbp->numblocks);k++) {
 					if (tgbo[k].block_id == cblock) blockcount++;
 				}
-				//if (blockcount) dbg_sprintf(dbgout,"Block %i, numbering %i\n",cblock,blockcount);
+				//if (blockcount) //dbg_sprintf(dbgout,"Block %i, numbering %i\n",cblock,blockcount);
 				//Then set inventory to what we found if there wasn't enough.
 				if (inventory[cblock]<blockcount) inventory[cblock]=blockcount;
 			}
@@ -292,7 +325,7 @@ void drawShipPreview(gfx_sprite_t *insprite) {
 		//if (!(srcsprite = bpo->sprite)) continue;  //No out of range (NULL) sprites
 		w = tempblock_smallscratch->width = srcsprite->width >> 1;   //quick and dirty
 		h = tempblock_smallscratch->height = srcsprite->height >> 1; //div by 2 for each
-		//dbg_sprintf(dbgout,"Item %i, (w,h)=(%i,%i)\n",i,w,h);
+		////dbg_sprintf(dbgout,"Item %i, (w,h)=(%i,%i)\n",i,w,h);
 		//Shrink down and move to tempsprite
 		gfx_ScaleSprite(srcsprite,tempblock_smallscratch);
 		switch (gbo->orientation&3) {

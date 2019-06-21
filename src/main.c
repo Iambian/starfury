@@ -100,7 +100,7 @@ void main(void) {
 	/* Initialize game defaults */
 	initPlayerData();
 	if (!openSaveReader()) error("Can't open/write save file");
-	loadBuiltinBlueprint(0);
+	//loadBuiltinBlueprint(0);
 	
 	/* INITIALIZE DEBUG LOGIC */
 	
@@ -111,9 +111,6 @@ void main(void) {
 	shipselidx = 0;  //You will always have a starting blueprint
 	bpcopy = malloc(sizeof(bpcopywhere)*8); //Need 8 char pointer slots
 	bpcopy[0] = bpcopywhere;
-	
-	
-	
 	
 	while (1) {
 		kb_Scan();
@@ -186,8 +183,7 @@ void main(void) {
 	/* Preserve save file and exit */
 //	int_Reset();
 	gfx_End();
-//	slot = ti_Open("BkShpDAT","w");
-//	ti_Write(&highscore,sizeof highscore, 1, slot);
+	saveGameData();
 	ti_CloseAll();
 	exit(0);
 	
@@ -248,7 +244,7 @@ void renderShipFile(uint8_t pos,uint8_t index) {
 	int xbase;
 	
 	if (getShipData(index)) return;
-	dbg_sprintf(dbgout,"Rendering... \n");
+	//dbg_sprintf(dbgout,"Rendering... \n");
 	curblueprint = &temp_blueprint;
 	curblueprint->blocks = temp_bpgrid;
 	
