@@ -69,12 +69,15 @@ uint8_t staticMenu(char **sarr,uint8_t numstrings) {
 //wide to accomodate the zero-terminator at the end
 //                 0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF
 static char carr_ninp[64] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789./";
+char *ninp_sarr[2] = {"Input new name",NULL};
 
-uint8_t nameInput(char **sarr) {
+uint8_t nameInput(char *s) {
 	kb_key_t kc,kd;
 	uint8_t i,charcursor,gridcursor,ybase,cbase,height,ytemp;
 	int width,xbase,xtemp;
-	char *inputbuf = sarr[1];
+	char *inputbuf;
+	
+	inputbuf = ninp_sarr[1] = s;
 	inputbuf[16] = 0;  //making sure the string is, in fact, zero-terminated
 	//And then move the char cursor up to the end of any preexisting name
 	for (charcursor=0;charcursor<16;charcursor++) if (0==inputbuf[charcursor]) break;
@@ -110,7 +113,7 @@ uint8_t nameInput(char **sarr) {
 		if (kd&kb_Up)    gridcursor = (gridcursor-8)&0x3F;
 		if (kd&kb_Down)  gridcursor = (gridcursor+8)&0x3F;
 		
-		drawMenuStrings(sarr,2,xbase,ybase,width,height,0,cbase);
+		drawMenuStrings(ninp_sarr,2,xbase,ybase,width,height,0,cbase);
 		
 		gfx_SetTextFGColor(COLOR_WHITE);
 		gfx_SetColor(cbase|COLOR_DARK);

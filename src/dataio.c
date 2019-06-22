@@ -79,6 +79,8 @@ void initPlayerData(void) {
 		gamedata.credits_owned = 100;
 		gamedata.custom_blueprints_owned = 0;
 		createNewBlueprint();  //Initialize first user blueprint
+		createNewBlueprint();  //FOR DEBUGGING PURPOSES
+		createNewBlueprint();  //FOR DEBUGGING PURPOSES
 		//Setup inventory
 		setMinimalInventory();
 		saveGameData();
@@ -159,7 +161,7 @@ void saveBlueprint(uint8_t bpslot) {
 	int offset;
 	
 	f = openSaveWriter();
-	offset = bpslot * ((sizeof temp_blueprint)*(sizeof temp_bpgrid));
+	offset = bpslot * ((sizeof temp_blueprint)+(sizeof temp_bpgrid));
 	ti_Seek((2*255)+offset,SEEK_SET,f);
 	ti_Write(&temp_blueprint,sizeof temp_blueprint,1,f);
 	ti_Write(&temp_bpgrid,sizeof temp_bpgrid,1,f);
@@ -179,7 +181,7 @@ void loadBlueprint(uint8_t bpslot) {
 	}
 	////dbg_sprintf(dbgout,"lbp loading...\n");
 	f = openSaveReader();
-	offset = bpslot * ((sizeof temp_blueprint)*(sizeof temp_bpgrid));
+	offset = bpslot * ((sizeof temp_blueprint)+(sizeof temp_bpgrid));
 	ti_Seek((2*255)+offset,SEEK_SET,f);
 	ti_Read(&temp_blueprint,sizeof temp_blueprint,1,f);
 	ti_Read(&temp_bpgrid,sizeof temp_bpgrid,1,f);
@@ -214,7 +216,8 @@ void resetBlueprint(void) {
 uint8_t createNewBlueprint(void) {
 	if (gamedata.custom_blueprints_owned>6) return 1; //No. Do not add any more.
 	resetBlueprint();
-	saveBlueprint(gamedata.custom_blueprints_owned++);
+	saveBlueprint(gamedata.custom_blueprints_owned);
+	++gamedata.custom_blueprints_owned;
 	saveGameData();  //save the incremented ownership back to file
 	return 0;
 }
@@ -349,7 +352,6 @@ void drawShipPreview(gfx_sprite_t *insprite) {
 //Uses the fact that the TI-OS keeps all files in the same memory 
 void loadAllShipNames(char **namearray) {
 	uint8_t i;
-	int skiplen;
 	ti_var_t f;
 	blueprint_obj *bpo;
 	
@@ -358,7 +360,6 @@ void loadAllShipNames(char **namearray) {
 	for (i=1;i<8;i++) {
 		bpo = ti_GetDataPtr(f);
 		namearray[i] = &(bpo->name);
-		skiplen = bpo->numblocks * (sizeof empty_gridblock);
-		ti_Seek((sizeof empty_blueprint) + skiplen,SEEK_CUR,f);
+		ti_Seek((sizeof empty_blueprint) + (sizeof temp_bpgrid),SEEK_CUR,f);
 	}
 }

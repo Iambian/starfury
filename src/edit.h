@@ -8,7 +8,7 @@
 
 
 
-void openEditor(void); 
+void openEditor(uint8_t cbpidx); 
 
 
 

@@ -41,6 +41,7 @@ uint8_t getShipData(uint8_t sidx);
 uint8_t prevShipIndex(uint8_t sidx);
 uint8_t nextShipIndex(uint8_t sidx);
 void renderShipFile(uint8_t pos,uint8_t index);  //pos: 0,1,2. index is shipselidx
+void copyShip(uint8_t ssidx);
 
 
 
@@ -66,8 +67,7 @@ const char *bpcustom[] = {"Options","Fly this ship","Copy to another blueprint",
 const char *bpnothingthere[]= {"You fool!","You can't fly a ship","without having built","anything yet!"};
 char **bpcopy;
 const char *bpoverwritten[] = {"Notice","File has been overwritten!"};
-char *bpnameinput[2] = {"Input new name",NULL};
-
+char *bperaseconfirm[] = {"Really erase this file?","Do not","Erase this"};
 
 #define STRI_TOPY (20+64+4+((64-32)/2))
 #define STRI_BTMY (20+64+4+((64-32)/2)+32)
@@ -123,14 +123,11 @@ void main(void) {
 		if (kc&kb_2nd) {
 			if (shipselidx<8) {
 				t = staticMenu(bpdefault,3);
-				if (2==t) {
-					loadAllShipNames(bpcopy);
-					tt = staticMenu(bpcopy,1+gamedata.custom_blueprints_owned);
-					if (tt) {
-						getShipData(shipselidx);
-						saveBlueprint(tt-1);
-						alert(bpoverwritten,2);
-					}
+				if (1==t) {
+					//Fly the ship
+				} else 	if (2==t) {
+					//Copy ship to another file
+					copyShip(shipselidx);
 				}
 			} else {
 				t = staticMenu(bpcustom,6);
@@ -144,17 +141,21 @@ void main(void) {
 					}
 					
 				} else if (2==t) {
-					//Copy operation
+					//Copy ship to another file
+					copyShip(shipselidx);
 				} else if (3==t) {
 					//Edit operation
+					openEditor(shipselidx-8);
 				} else if (4==t) {
 					//Rename operation
-					bpnameinput[1] = &temp_blueprint.name;
-					if (nameInput(bpnameinput)) saveBlueprint(shipselidx-8);
+					if (nameInput(&temp_blueprint.name)) saveBlueprint(shipselidx-8);
 				} else if (5==t) {
 					//Clear operation
+					if (2==staticMenu(bperaseconfirm,3)) {
+						memcpy(&temp_blueprint,&empty_blueprint,sizeof empty_blueprint);
+						saveBlueprint(shipselidx-8);
+					}
 				}
-				
 			}
 			
 		}
@@ -290,14 +291,17 @@ void renderShipFile(uint8_t pos,uint8_t index) {
 		rsf_textline(xbase+(48+14+51+14),&ytemp,"SPD",bpstats.spd);
 		rsf_textline(xbase+(48+14+51+14),&ytemp,"AGI",bpstats.agi);
 	}
-	
-	
-	
-	
-	
 }
 
-
+void copyShip(uint8_t ssidx) {
+	uint8_t tt;
+	loadAllShipNames(bpcopy);
+	if (tt=staticMenu(bpcopy,1+gamedata.custom_blueprints_owned)) {
+		getShipData(ssidx);
+		saveBlueprint(tt-1);
+		alert(bpoverwritten,2);
+	}
+}
 
 
 

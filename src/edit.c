@@ -24,6 +24,7 @@
 #include "util.h"
 #include "dataio.h"
 #include "edit.h"
+#include "menu.h"
 #include "gfx/out/gui_gfx.h"
 
 /* Function prototypes goes here */
@@ -55,6 +56,9 @@ gfx_sprite_t *tempblock_inv;    //Up to 32x32 (4x4 block)
 // note: tempblock_scratch moved to main.c for more permanent role
 
 /* Globals can go here */
+const char *edit_quitconfirm[] = {"Really quit?","No","Yes"};
+const char *edit_reloadconfirm[] = {"Discard all changes?","No","Yes"};
+const char *edit_savenotice[] = {"Notice","Your blueprint","has been saved!"};
 
 //Note: curblueprint defined in dataio.c. It's also set up there on file load
 uint8_t gridlevel;      //Used internally
@@ -67,7 +71,7 @@ gridblock_obj selected_object;  //X,Y at -1,-1 if obj is in inventory
 
 
 
-void openEditor(void) {
+void openEditor(uint8_t cbpidx) {
 	kb_key_t kc,kd;
 	uint8_t i,update_flags,tx,ty,t,limit;
 	uint8_t tt;
@@ -101,6 +105,8 @@ void openEditor(void) {
 		if (kc == kb_Graph) {
 			if (edit_status&FILE_SELECT) {
 				//You pushed QUIT. What do?
+				if (2==staticMenu(edit_quitconfirm,3)) break;
+				update_flags = 0xFF;
 			} else {
 				if (!(edit_status&EDIT_SELECT)) {
 					//Do not allow switching to color if holding a block
@@ -128,6 +134,9 @@ void openEditor(void) {
 		if (kc == kb_Zoom) {
 			if (edit_status&FILE_SELECT) {
 				//File: RELOAD. Copy from file to buffer.
+				if (2==staticMenu(edit_reloadconfirm,3)) getShipData(cbpidx+8);
+				updateGridArea();
+				update_flags = 0xFF;
 			} else {
 				if (edit_status&EDIT_SELECT) {
 					//Assumes move mode. Flip
@@ -145,6 +154,9 @@ void openEditor(void) {
 		if (kc == kb_Window) {
 			if (edit_status&FILE_SELECT) {
 				//File: SAVE. Write current buffer out to file.
+				saveBlueprint(cbpidx);
+				alert(edit_savenotice,3);
+				update_flags = 0xFF;
 			} else {
 				if (edit_status&EDIT_SELECT) {
 					//Assumes move mode. Rotate CCW
@@ -343,6 +355,10 @@ void openEditor(void) {
 			update_flags &= ~PAN_FULLSCREEN;  //Clear fullscreen bit
 			update_flags |= ~PAN_FULLSCREEN;  //Set all others because dirty.
 			gfx_FillScreen(COLOR_BLACK);
+			gfx_SetTextFGColor(0x3C|COLOR_LIGHT);    //Picked using color contrast tool
+			gfx_PrintStringXY("Ship name",64+5,2);
+			gfx_SetTextFGColor(COLOR_WHITE|COLOR_LIGHTER);
+			gfx_PrintStringXY(curblueprint->name,(64+10),12);
 			/* TODO: No other flags available. Render ship name here */
 		}
 		//inventory bar
