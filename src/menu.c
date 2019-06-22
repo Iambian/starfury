@@ -12,14 +12,14 @@
 #include <graphx.h>
 #include <fileioc.h>
 
+#include "gfx/out/gui_gfx.h"
 #include "main.h"
 #include "defs.h"
 #include "util.h"
 #include "menu.h"
 
 int getLongestLength(char **sarr, uint8_t numstrings);
-void drawMenuStrings(char **sarr, uint8_t numstrings,int xbase, uint8_t ybase, int width, uint8_t index, uint8_t cbase);
-
+void drawMenuStrings(char **sarr, uint8_t numstrings,int xbase, uint8_t ybase, int width, uint8_t height, uint8_t index, uint8_t cbase);
 
 
 
@@ -55,11 +55,86 @@ uint8_t staticMenu(char **sarr,uint8_t numstrings) {
 		if ((kd&kb_Up) && (!--index)) index = numstrings-1;
 		if ((kd&kb_Down) && (++index == numstrings)) index = 1;
 		
-		drawMenuStrings(sarr,numstrings,xbase,ybase,width,index,cbase);
+		drawMenuStrings(sarr,numstrings,xbase,ybase,width,height,index,cbase);
+		//Copy results to screen
+		gfx_BlitRectangle(gfx_buffer,xbase,ybase,width,height);
 		
 		if (kd|kc) keywait();
 	}
 	return index;
+}
+
+//sarr is two pointers, one is to an input buffer. The entire dialog is assumed
+//to be 140 characters wide to provide buffering. Assumes the buffer is 17 char
+//wide to accomodate the zero-terminator at the end
+//                 0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF
+static char carr_ninp[64] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789./";
+
+uint8_t nameInput(char **sarr) {
+	kb_key_t kc,kd;
+	uint8_t i,charcursor,gridcursor,ybase,cbase,height,ytemp;
+	int width,xbase,xtemp;
+	char *inputbuf = sarr[1];
+	inputbuf[16] = 0;  //making sure the string is, in fact, zero-terminated
+	//And then move the char cursor up to the end of any preexisting name
+	for (charcursor=0;charcursor<16;charcursor++) if (0==inputbuf[charcursor]) break;
+	if (16==charcursor) charcursor=15;
+	
+	width = (16*8+8); //4px margin, 16px per selectable. coincides 8px 16chr
+	height = (16*8+8+10+16); //4px margin, 16px select, 16px head, 10px "opt"
+	xbase = (LCD_WIDTH-width)/2;
+	ybase = (LCD_HEIGHT-height)/2;
+	cbase = 0x16; //A faded blue, set to darkest.
+	gridcursor = 0;
+	
+	keywait();
+	
+	while (1) {
+		kb_Scan();
+		kd = kb_Data[7];
+		kc = kb_Data[1];
+		
+		if (kc&kb_Mode) return 0;
+		if (kc&kb_2nd) {
+			if ((15==charcursor)||(63==gridcursor)) { inputbuf[charcursor+1] = 0; return 1; }
+			inputbuf[charcursor] = carr_ninp[gridcursor];
+			++charcursor;
+		}
+		if (kc&kb_Del && charcursor) {
+			--charcursor;
+			inputbuf[charcursor] = 0;
+		}
+		//Bitmask shenanigans
+		if (kd&kb_Left)  gridcursor = ((gridcursor-1)&7)|(gridcursor&0x38);
+		if (kd&kb_Right) gridcursor = ((gridcursor+1)&7)|(gridcursor&0x38);
+		if (kd&kb_Up)    gridcursor = (gridcursor-8)&0x3F;
+		if (kd&kb_Down)  gridcursor = (gridcursor+8)&0x3F;
+		
+		drawMenuStrings(sarr,2,xbase,ybase,width,height,0,cbase);
+		
+		gfx_SetTextFGColor(COLOR_WHITE);
+		gfx_SetColor(cbase|COLOR_DARK);
+		for (i=0;i<64;i++) {
+			xtemp = xbase+(4+((i&7)<<4));
+			ytemp = ybase+(10+16+4)+(((i&~7)&0xFF)<<1);
+			
+			if (i==gridcursor) gfx_FillRectangle_NoClip(xtemp,ytemp,16,16);
+			if (63==i) {
+				gfx_TransparentSprite_NoClip((gfx_sprite_t*)ninp_end_data,xtemp+3,ytemp+5);
+			} else {
+				gfx_SetTextXY(xtemp+4,ytemp+4);
+				gfx_PrintChar(carr_ninp[i]);
+			}
+		}
+		
+		
+		//Copy results to screen
+		gfx_BlitRectangle(gfx_buffer,xbase,ybase,width,height);
+		if (kd|kc) keywait();
+	}
+	
+	
+	
 }
 
 //We don't have newlines so we've got to do it via array of strings.
@@ -81,17 +156,18 @@ void alert(char **sarr,uint8_t numstrings) {
 		kb_Scan();
 		kd = kb_Data[7];
 		kc = kb_Data[1];
-		drawMenuStrings(sarr,numstrings,xbase,ybase,width,0,cbase);
+		drawMenuStrings(sarr,numstrings,xbase,ybase,width,height,0,cbase);
+		//Copy results to screen
+		gfx_BlitRectangle(gfx_buffer,xbase,ybase,width,height);
+
 	} while (!(kd|kc));
 	keywait();
 	
 }
 
-void drawMenuStrings(char **sarr, uint8_t numstrings,int xbase, uint8_t ybase, int width, uint8_t index, uint8_t cbase) {
-	uint8_t i,height,ytemp;
+void drawMenuStrings(char **sarr, uint8_t numstrings,int xbase, uint8_t ybase, int width, uint8_t height, uint8_t index, uint8_t cbase) {
+	uint8_t i,ytemp;
 	int xtemp;
-	
-	height = (4+(numstrings-1)*10+16); //Border 4px, header 16px, others 10px
 	
 	//Draw the menubox
 	menuRectangle(xbase,ybase,width,height,cbase);
@@ -110,8 +186,6 @@ void drawMenuStrings(char **sarr, uint8_t numstrings,int xbase, uint8_t ybase, i
 		gfx_PrintStringXY(sarr[i],xtemp+(width-gfx_GetStringWidth(sarr[i]))/2-2,ytemp+1);
 		ytemp += 10;
 	}
-	//Copy results to screen
-	gfx_BlitRectangle(gfx_buffer,xbase,ybase,width,height);
 }
 
 

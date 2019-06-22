@@ -54,6 +54,7 @@ gfx_sprite_t *mainsprite;
 gfx_sprite_t *altsprite;
 gfx_sprite_t *tempblock_scratch;
 gfx_sprite_t *tempblock_smallscratch;
+char nameinput[17];
 
 /* Globals and defines that will be moved out to a new file once done testing */
 uint8_t shipselidx;
@@ -61,10 +62,11 @@ uint8_t shipselidx;
 const char *bpcopywhere = "Copy blueprint where?";
 
 const char *bpdefault[] = {"Options","Fly this ship","Copy to custom blueprint"};
-const char *bpcustom[] = {"Options","Fly this ship","Edit this blueprint","Rename this blueprint","Clear this blueprint"};
+const char *bpcustom[] = {"Options","Fly this ship","Copy to another blueprint","Edit this blueprint","Rename this blueprint","Clear this blueprint"};
 const char *bpnothingthere[]= {"You fool!","You can't fly a ship","without having built","anything yet!"};
 char **bpcopy;
 const char *bpoverwritten[] = {"Notice","File has been overwritten!"};
+char *bpnameinput[2] = {"Input new name",NULL};
 
 
 #define STRI_TOPY (20+64+4+((64-32)/2))
@@ -131,7 +133,7 @@ void main(void) {
 					}
 				}
 			} else {
-				t = staticMenu(bpcustom,5);
+				t = staticMenu(bpcustom,6);
 				getShipData(shipselidx);
 				if (1==t) {
 					if (!temp_blueprint.numblocks) {
@@ -141,6 +143,16 @@ void main(void) {
 						//that won't actually fly.
 					}
 					
+				} else if (2==t) {
+					//Copy operation
+				} else if (3==t) {
+					//Edit operation
+				} else if (4==t) {
+					//Rename operation
+					bpnameinput[1] = &temp_blueprint.name;
+					if (nameInput(bpnameinput)) saveBlueprint(shipselidx-8);
+				} else if (5==t) {
+					//Clear operation
 				}
 				
 			}
