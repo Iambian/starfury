@@ -708,9 +708,9 @@ void drawPowerLimit(void) {
 	energy_used = bpstats.weight;
 	energy_total = bpstats.power;
 	
-	if (energy_used>energy_total) {
+	if (energy_used>=energy_total) {
 		w=60;
-		gfx_SetColor(COLOR_RED);
+		if (energy_used>energy_total) gfx_SetColor(COLOR_RED);
 	} else {
 		w = (60*energy_used)/energy_total;
 		gfx_SetColor(COLOR_LIME);

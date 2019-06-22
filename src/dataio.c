@@ -83,15 +83,20 @@ void initPlayerData(void) {
 		createNewBlueprint();  //FOR DEBUGGING PURPOSES
 		//Setup inventory
 		setMinimalInventory();
+		dbg_sprintf(dbgout,"Inventory slot 1 r1: %i\n",inventory[1]);
 		saveGameData();
+		dbg_sprintf(dbgout,"Inventory slot 1 r2: %i\n",inventory[1]);
 		f = openSaveReader();
-		ti_GetC(f);
-		ti_Read(&gamedata+1,254,1,f);
+		dbg_sprintf(dbgout,"Inventory slot 1 r3: %i\n",inventory[1]);
+		ti_Rewind(f);
+		ti_Read(&gamedata,255,1,f);
 		ti_Read(inventory+1,255,1,f);
+		dbg_sprintf(dbgout,"Inventory slot 1 r4: %i\n",inventory[1]);
 		saveGameData();
 		
 	}
 	//Setup blueprint and grid area
+	dbg_sprintf(dbgout,"Inventory slot 1 rn: %i\n",inventory[1]);
 	curblueprint = &temp_blueprint;
 	memcpy(curblueprint,&empty_blueprint,sizeof empty_blueprint);
 	curblueprint->blocks = &temp_bpgrid;
