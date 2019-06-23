@@ -3,11 +3,9 @@
 
 #include <stdint.h>
 
-//To move out to another file when finished
-uint8_t getShipData(uint8_t sidx);
 
-
-
+extern gfx_sprite_t *mainsprite;
+extern gfx_sprite_t *altsprite;
 extern gfx_sprite_t *tempblock_scratch;
 extern gfx_sprite_t *tempblock_smallscratch;
 

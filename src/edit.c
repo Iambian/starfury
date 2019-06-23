@@ -25,6 +25,7 @@
 #include "dataio.h"
 #include "edit.h"
 #include "menu.h"
+#include "sselect.h"
 #include "gfx/out/gui_gfx.h"
 
 /* Function prototypes goes here */
