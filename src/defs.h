@@ -65,6 +65,8 @@
 #define PREVIEWBLOCK_MAX_W 48
 #define PREVIEWBLOCK_MAX_H 48
 
+#define MAX_FIELD_OBJECTS 512
+
 
 /* DEFINES FOR CONSTANT BLOCK STATS */
 
@@ -92,20 +94,14 @@ enum PANEL { PAN_INV=1,PAN_LIM=2,PAN_RIGHT=4,PAN_CURSEL=8,PAN_STATUS=16,
 //
 
 
-typedef union fp16_8 {
+typedef union fp168_union {
 	int fp;
 	struct {
 		uint8_t fpart;
 		int16_t ipart;
 	} p;
-} fp16_8;
+} fp168;
 
-typedef struct bullet_t {
-	uint8_t id;
-	fp16_8 x,y,angle,speed;
-	uint8_t power;
-	int temp;
-} bullet_t;
 
 /* Used to represent the location of every block on the ship construction grid */
 typedef struct gridblock_obj_struct {
@@ -141,30 +137,9 @@ typedef struct blockprop_obj_struct {
 } blockprop_obj;
 
 
-/* There should be enough of these structs in memory to accomodate the maximum
-   number of weapons one can stick on a ship.
-   
-   Implementation notes: On action, only fire if cur_fire_delay is zero. This
-   variable is only incremented in main loop so player can't spam the 2nd key
-   to fire faster than one ought to be able to. Incrementing stops if
-   max_fire_delay <= cur_fire_delay and is set to zero if true.
-
-*/
-typedef struct weapon_obj {
-	blockprop_obj *source;
-	uint8_t max_fire_delay;  //Must wait this many cycles before firing again
-	uint8_t cur_fire_delay;  //Current cycle.
-	uint8_t element;         //Reserved. Set to zero in the meantime.
-	uint8_t base_power;      //True power = this plus shipcombined->atk
-	uint8_t fire_direction;  //Derived from orientation. Uses enum DIRECTION
-	/* Anything else that I missed? */
-} weapon_obj;
-
-
 
 /*	96 by 96 field to freely place 8x8 blocks onto a 12x12 grid, which is then
 	doubled and rendered to the graph buffer on the fly */
-extern gfx_sprite_t *buildarea;
 
 
 

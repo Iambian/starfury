@@ -51,11 +51,44 @@ gfx_sprite_t *mainsprite;
 gfx_sprite_t *altsprite;
 gfx_sprite_t *tempblock_scratch;
 gfx_sprite_t *tempblock_smallscratch;
-char nameinput[17];
+
+//Field objects can include player bullets, enemy bullets, and powerups
+enum FIELDOBJ {FOB_PBUL=1,FOB_EBUL=2,FOB_ITEM=4};
+typedef struct field_obj_struct {
+	uint8_t id;
+	uint8_t flag;  //Should use FIELDOBJ enum for populating this
+	uint8_t counter;
+	uint8_t power;
+	unsigned int data;
+	fp168 x,y,dx,dy;
+	void (*fMov)(struct field_obj_struct *fobj);
+} field_obj;
+typedef struct enemy_obj_struct {
+	uint8_t id;
+	fp168 x,y,dx,dy;
+	int hp;
+	uint8_t armor;
+	uint8_t hbx,hby; //Trickery needs to be done here. x dimension is half-res
+	uint8_t hbw,hbh; //to keep in uint8_t and to improve performance (on ASM write)
+} enemy_obj;
+typedef struct weapon_obj_struct {
+	uint8_t xoffset,yoffset;
+	uint8_t fire_direction;
+	uint8_t cooldown;
+	uint8_t cooldown_on_firing; //Use this to set cooldown after firing
+	uint8_t power;              //Strength of the bullet that it fires
+	void (*fShot)(struct weapon_obj_struct *wobj);
+} weapon_obj;
+
+field_obj  empty_fobj;
+enemy_obj  empty_eobj;
+weapon_obj empty_wobj;
 
 /* Globals and defines that will be moved out to a new file once done testing */
-
-
+uint8_t maintimer;
+field_obj *fobjs;
+enemy_obj *eobjs;
+weapon_obj *wobjs;
 
 
 
@@ -89,8 +122,40 @@ void main(void) {
 	/* INITIALIZE DEBUG LOGIC */
 	
 	//openEditor();  //DEBUGGING: EDITOR
-
-	shipSelect();  //DEBUGGING: SHIP SELECTION
+	//shipSelect();  //DEBUGGING: SHIP SELECTION
+	
+	//Initialize gameplay test environment
+	loadBuiltinBlueprint(0);      //Load first builtin blueprint
+	drawShipPreview(mainsprite);  //Prerender the ship
+	curblueprint = &temp_blueprint;  //idk why this isn't done already but meh
+	addStats();  //bpstats.[hp,power,weight,atk,def,spd,agi,wpn,cmd]
+	
+	
+	//Initialize bullets and system
+	fobjs = malloc(MAX_FIELD_OBJECTS * (sizeof empty_fobj));
+	memset(fobjs,0,MAX_FIELD_OBJECTS * (sizeof empty_fobj));
+	if (bpstats.wpn) {
+		mobjs = malloc(bpstats.wpn * (sizeof empty_wobj));
+		memset(mobjs,0,bpstats.wpn * (sizeof empty_wobj));
+	} else {
+		mobjs = NULL;
+	}
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
 	
 	/*
 	while (1) {

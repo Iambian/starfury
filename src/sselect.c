@@ -44,6 +44,7 @@ const char *bpnothingthere[]= {"You fool!","You can't fly a ship","without havin
 char **bpcopy;
 const char *bpoverwritten[] = {"Notice","File has been overwritten!"};
 char *bperaseconfirm[] = {"Really erase this file?","Do not","Erase this"};
+char nameinput[17];
 
 
 

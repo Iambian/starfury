@@ -12,8 +12,4 @@ void openEditor(uint8_t cbpidx);
 
 
 
-
-
-
-
 #endif
