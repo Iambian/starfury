@@ -90,12 +90,17 @@ field_obj *fobjs;
 enemy_obj *eobjs;
 weapon_obj *wobjs;
 
+fp168 playerx,playery;
+int player_curhp;  //Maximums and other stats located in bpstats struct
+
 
 
 
 void main(void) {
 	kb_key_t kc,kd;
-	uint8_t i,update_flags,tx,ty,t,limit;
+	gridblock_obj *gbo;
+	blockprop_obj *bpo;
+	uint8_t i,k,update_flags,tx,ty,t,limit;
 	uint8_t tt;
 
     gfx_Begin(gfx_8bpp);
@@ -128,19 +133,45 @@ void main(void) {
 	loadBuiltinBlueprint(0);      //Load first builtin blueprint
 	drawShipPreview(mainsprite);  //Prerender the ship
 	curblueprint = &temp_blueprint;  //idk why this isn't done already but meh
-	addStats();  //bpstats.[hp,power,weight,atk,def,spd,agi,wpn,cmd]
+	sumStats();  //bpstats.[hp,power,weight,atk,def,spd,agi,wpn,cmd]
 	
 	
-	//Initialize bullets and system
+	//Allocate and initialize object memory
 	fobjs = malloc(MAX_FIELD_OBJECTS * (sizeof empty_fobj));
 	memset(fobjs,0,MAX_FIELD_OBJECTS * (sizeof empty_fobj));
+	eobjs = malloc(MAX_ENEMY_OBJECTS * (sizeof empty_eobj));
+	memset(eobjs,0,MAX_ENEMY_OBJECTS * (sizeof empty_eobj));
 	if (bpstats.wpn) {
-		mobjs = malloc(bpstats.wpn * (sizeof empty_wobj));
-		memset(mobjs,0,bpstats.wpn * (sizeof empty_wobj));
-	} else {
-		mobjs = NULL;
+		wobjs = malloc(bpstats.wpn * (sizeof empty_wobj));
+		memset(wobjs,0,bpstats.wpn * (sizeof empty_wobj));
+	} else 	wobjs = NULL;
+	//Initialize weapon memory
+	for (k=i=0;i<curblueprint->numblocks;i++) {
+		bpo = &blockobject_list[(gbo = &curblueprint->blocks[i])->block_id];
+		if (bpo->type & WEAPON) {
+			t = 3-curblueprint->gridlevel; //offset
+			wobjs[k].xoffset = (gbo->x+t)<<2;
+			wobjs[k].yoffset = (gbo->y+t)<<2;
+			t = gbo->orientation;
+			//collapse hflip to 180 deg orientation for direction and change to DIR enum
+			wobjs[k].fire_direction = ((t&4)>>1)^(t&3);
+			//wobjs[k].cooldown = 0; //Not necessary -- already zeroed w/ memset
+			switch (gbo->block_id) {
+				case BLOCK_TUR1: t =  5; tt =  1; break;
+				case BLOCK_TUR2: t =  5; tt =  2; break;
+				case BLOCK_TUR3: t =  5; tt =  3; break;
+				case BLOCK_LAS1: t = 20; tt =  1; break;
+				case BLOCK_LAS2: t = 20; tt =  2; break;
+				case BLOCK_LAS3: t = 15; tt =  3; break;
+				case BLOCK_MIS1: t = 40; tt = 20; break;
+				case BLOCK_MIS2: t = 40; tt = 30; break;
+				case BLOCK_MIS3: t = 40; tt = 40; break;
+				default: t = 10; tt = 0; break;
+			}
+			wobjs[k].cooldown_on_firing = t;
+			wobjs[k].power = bpstats.atk + tt;
+		}
 	}
-	
 	
 	
 	
@@ -169,6 +200,14 @@ void main(void) {
 		
 	}
 	*/
+	
+	//Battle system cleanup
+	free(fobjs);
+	free(eobjs);
+	free(wobjs);
+	
+	
+	
 	
 	/* Preserve save file and exit */
 //	int_Reset();

@@ -66,6 +66,7 @@
 #define PREVIEWBLOCK_MAX_H 48
 
 #define MAX_FIELD_OBJECTS 512
+#define MAX_ENEMY_OBJECTS 32
 
 
 /* DEFINES FOR CONSTANT BLOCK STATS */
@@ -85,7 +86,7 @@
 /* ENUMS AND TYPEDEFS */
 
 enum BKT { FILLER=0,COMMAND=1,ENGINE=2,WEAPON=4,SPECIAL=8,ENERGYSOURCE=16 };
-enum DIR { UP=0,UPRIGHT,RIGHT,DOWNRIGHT,DOWN,DOWNLEFT,LEFT,UPLEFT };
+//enum DIR { UP=0,UPRIGHT,RIGHT,DOWNRIGHT,DOWN,DOWNLEFT,LEFT,UPLEFT };
 enum BLPT { BP_BASIC=1,BP_INTERMEDIATE=2,BP_ADVANCED=4,BP_EXTRA=8 };
 enum ESTAT { EDIT_SELECT=1,COLOR_SELECT=2,FILE_SELECT=4,NOW_PAINTING=8,
 			 PICKING_COLOR=16,OTHER_CONFIRM=32,QUIT_CONFIRM=128};
@@ -136,10 +137,6 @@ typedef struct blockprop_obj_struct {
 	char *name;         	//Display name of object in question
 } blockprop_obj;
 
-
-
-/*	96 by 96 field to freely place 8x8 blocks onto a 12x12 grid, which is then
-	doubled and rendered to the graph buffer on the fly */
 
 
 
