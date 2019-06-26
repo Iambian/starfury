@@ -98,6 +98,8 @@ int player_curhp;  //Maximums and other stats located in bpstats struct
 
 void main(void) {
 	kb_key_t kc,kd;
+	fp168 tempfp;
+	int tempint;
 	gridblock_obj *gbo;
 	blockprop_obj *bpo;
 	uint8_t i,k,update_flags,tx,ty,t,limit;
@@ -174,32 +176,47 @@ void main(void) {
 	}
 	
 	
-	
-	
-	
-	
-	
-	
-	
-	
-	
-	
-	
-	
-	
-	
-	/*
+	keywait();
+	// I think we have enough object memory allocated and initialized?
 	while (1) {
 		kb_Scan();
 		kd = kb_Data[7];
 		kc = kb_Data[1];
 		if (kc&kb_Mode) { keywait(); break; }
 		
+		if (kd&kb_Left) {
+			if ((tempint = playerx.fp-(128*bpstats.spd))> 0) {
+				playerx.fp = tempint;
+			} else playerx.fp = 0;
+		}
+		if (kd&kb_Right) {
+			if ((tempint = playerx.fp+(128*bpstats.spd))< ((320-48)*256)) {
+				playerx.fp = tempint;
+			} else playerx.fp = ((320-48)*256);
+		}
+		if (kd&kb_Up) {
+			if ((tempint = playery.fp-(128*bpstats.spd))> 0) {
+				playery.fp = tempint;
+			} else playery.fp = 0;
+		}
+		if (kd&kb_Down) {
+			if ((tempint = playery.fp+(128*bpstats.spd))< ((240-48)*256)) {
+				playery.fp = tempint;
+			} else playery.fp = ((240-48)*256);
+		}
+		
+		
+		gfx_FillScreen(COLOR_BLACK);
+		
+		gfx_TransparentSprite_NoClip(mainsprite,playerx.p.ipart,playery.p.ipart);
+		
+		
+		
+		
+		
 		gfx_BlitBuffer();
-		if (kd|kc) keywait();
 		
 	}
-	*/
 	
 	//Battle system cleanup
 	free(fobjs);
