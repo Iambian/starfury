@@ -35,8 +35,28 @@
 #include "sselect.h"
 #include "gfx/out/gui_gfx.h"
 #include "menu.h"
+#include "enemy.h"
+
+//Field objects can include player bullets, enemy bullets, and powerups
+
+
 
 /* Put your function prototypes here */
+void generateEnemy(int );
+field_obj *findEmptyFieldObject(void);
+void setShotStats(field_obj *fobj, weapon_obj *wobj, int velocity);
+
+
+void shotTur1(struct weapon_obj_struct *wobj);
+void shotTur2(struct weapon_obj_struct *wobj);
+void shotTur3(struct weapon_obj_struct *wobj);
+void shotLas1(struct weapon_obj_struct *wobj);
+void shotLas2(struct weapon_obj_struct *wobj);
+void shotLas3(struct weapon_obj_struct *wobj);
+void shotMis1(struct weapon_obj_struct *wobj);
+void shotMis2(struct weapon_obj_struct *wobj);
+void shotMis3(struct weapon_obj_struct *wobj);
+
 
 
 
@@ -52,33 +72,6 @@ gfx_sprite_t *altsprite;
 gfx_sprite_t *tempblock_scratch;
 gfx_sprite_t *tempblock_smallscratch;
 
-//Field objects can include player bullets, enemy bullets, and powerups
-enum FIELDOBJ {FOB_PBUL=1,FOB_EBUL=2,FOB_ITEM=4};
-typedef struct field_obj_struct {
-	uint8_t id;
-	uint8_t flag;  //Should use FIELDOBJ enum for populating this
-	uint8_t counter;
-	uint8_t power;
-	unsigned int data;
-	fp168 x,y,dx,dy;
-	void (*fMov)(struct field_obj_struct *fobj);
-} field_obj;
-typedef struct enemy_obj_struct {
-	uint8_t id;
-	fp168 x,y,dx,dy;
-	int hp;
-	uint8_t armor;
-	uint8_t hbx,hby; //Trickery needs to be done here. x dimension is half-res
-	uint8_t hbw,hbh; //to keep in uint8_t and to improve performance (on ASM write)
-} enemy_obj;
-typedef struct weapon_obj_struct {
-	uint8_t xoffset,yoffset;
-	uint8_t fire_direction;
-	uint8_t cooldown;
-	uint8_t cooldown_on_firing; //Use this to set cooldown after firing
-	uint8_t power;              //Strength of the bullet that it fires
-	void (*fShot)(struct weapon_obj_struct *wobj);
-} weapon_obj;
 
 field_obj  empty_fobj;
 enemy_obj  empty_eobj;
@@ -98,10 +91,13 @@ int player_curhp;  //Maximums and other stats located in bpstats struct
 
 void main(void) {
 	kb_key_t kc,kd;
+	void (*fShot)(struct weapon_obj_struct *wobj);
 	fp168 tempfp;
 	int tempint;
 	gridblock_obj *gbo;
 	blockprop_obj *bpo;
+	field_obj *fobjs_cur;
+	field_obj *fobjs_end;
 	uint8_t i,k,update_flags,tx,ty,t,limit;
 	uint8_t tt;
 
@@ -158,20 +154,23 @@ void main(void) {
 			//collapse hflip to 180 deg orientation for direction and change to DIR enum
 			wobjs[k].fire_direction = ((t&4)>>1)^(t&3);
 			//wobjs[k].cooldown = 0; //Not necessary -- already zeroed w/ memset
+			//dbg_sprintf(dbgout,"Weapon obj %i found\n",gbo->block_id);
 			switch (gbo->block_id) {
-				case BLOCK_TUR1: t =  5; tt =  1; break;
-				case BLOCK_TUR2: t =  5; tt =  2; break;
-				case BLOCK_TUR3: t =  5; tt =  3; break;
-				case BLOCK_LAS1: t = 20; tt =  1; break;
-				case BLOCK_LAS2: t = 20; tt =  2; break;
-				case BLOCK_LAS3: t = 15; tt =  3; break;
-				case BLOCK_MIS1: t = 40; tt = 20; break;
-				case BLOCK_MIS2: t = 40; tt = 30; break;
-				case BLOCK_MIS3: t = 40; tt = 40; break;
-				default: t = 10; tt = 0; break;
+				case BLOCK_TUR1: t =  5; tt =  1; fShot=shotTur1; break;
+				case BLOCK_TUR2: t =  5; tt =  2; fShot=shotTur2; break;
+				case BLOCK_TUR3: t =  5; tt =  3; fShot=shotTur3; break;
+				case BLOCK_LAS1: t = 20; tt =  1; fShot=shotLas1; break;
+				case BLOCK_LAS2: t = 20; tt =  2; fShot=shotLas2; break;
+				case BLOCK_LAS3: t = 15; tt =  3; fShot=shotLas3; break;
+				case BLOCK_MIS1: t = 40; tt = 20; fShot=shotMis1; break;
+				case BLOCK_MIS2: t = 40; tt = 30; fShot=shotMis2; break;
+				case BLOCK_MIS3: t = 40; tt = 40; fShot=shotMis3; break;
+				default:         t = 10; tt =  0; fShot=NULL    ; break;
 			}
 			wobjs[k].cooldown_on_firing = t;
 			wobjs[k].power = bpstats.atk + tt;
+			wobjs[k].fShot = fShot;
+			++k;
 		}
 	}
 	
@@ -183,6 +182,16 @@ void main(void) {
 		kd = kb_Data[7];
 		kc = kb_Data[1];
 		if (kc&kb_Mode) { keywait(); break; }
+		if (kc&kb_2nd) {
+			for (i=0;i<bpstats.wpn;i++) {
+				if (!wobjs[i].cooldown && wobjs[i].fShot) {
+					wobjs[i].cooldown = wobjs[i].cooldown_on_firing;
+					wobjs[i].fShot(&wobjs[i]);
+				}
+			}
+		}
+		
+		
 		
 		if (kd&kb_Left) {
 			if ((tempint = playerx.fp-(128*bpstats.spd))> 0) {
@@ -208,10 +217,17 @@ void main(void) {
 		
 		gfx_FillScreen(COLOR_BLACK);
 		
+		//Render player ship
 		gfx_TransparentSprite_NoClip(mainsprite,playerx.p.ipart,playery.p.ipart);
+		//Render all field objects
+		for (fobjs_end=(fobjs_cur=fobjs)+MAX_FIELD_OBJECTS;fobjs_cur<fobjs_end;fobjs_cur++) {
+			if (fobjs_cur->flag && fobjs_cur->fMov) fobjs_cur->fMov(fobjs_cur);
+		}
 		
 		
 		
+		// At end of cycle, reduce cooldown timers on all weapons
+		for (i=0;i<bpstats.wpn;i++) if (wobjs[i].cooldown) --(wobjs[i].cooldown);
 		
 		
 		gfx_BlitBuffer();
@@ -261,6 +277,84 @@ void setup_palette(void) {
 	return;
 }
 */
+
+field_obj *findEmptyFieldObject(void) {
+	static int i=0; //Persist so i never has to travel too far to find next empty
+	int prev;
+	
+	prev = i;
+	do {
+		if (i==MAX_FIELD_OBJECTS) i=0;
+		if (!fobjs[i].flag) return &fobjs[i];
+	} while (++i != prev);
+	return NULL;
+}
+
+void setShotStats(field_obj *fobj, weapon_obj *wobj, int velocity) {
+	fobj->power = wobj->power;
+	fobj->x.fp = playerx.fp + (256*wobj->xoffset);
+	fobj->y.fp = playery.fp + (256*wobj->yoffset);
+	switch (wobj->fire_direction) {
+		case 0:  fobj->dx.fp = velocity ; fobj->dy.fp = 0        ; break;
+		case 1:  fobj->dx.fp = 0        ; fobj->dy.fp = velocity ; break;
+		case 2:  fobj->dx.fp = -velocity; fobj->dy.fp = 0        ; break;
+		case 3:  fobj->dx.fp = 0        ; fobj->dy.fp = -velocity; break;
+		default: fobj->dx.fp = -9999    ; fobj->dy.fp = 0        ; break;
+	}
+}
+
+//Create an actual sprite graphic later
+uint8_t smallshotdat[] = {3,3, 0,255,0, 255,255,255, 0,255,0};
+void smallShotMove(struct field_obj_struct *fobj) {
+	int tempfxp;
+	if ((unsigned int)(tempfxp = fobj->x.fp + fobj->dx.fp) >= ((320-3)*256)) {
+		fobj->flag = 0;  //destroy object
+		return;
+	} else fobj->x.fp = tempfxp;
+	if ((unsigned int)(tempfxp = fobj->y.fp + fobj->dy.fp) >= ((240-3)*256)) {
+		fobj->flag = 0;  //destroy object
+		return;
+	} else fobj->y.fp = tempfxp;
+	gfx_TransparentSprite_NoClip((gfx_sprite_t*)smallshotdat,fobj->x.p.ipart,fobj->y.p.ipart);
+}
+
+
+void shotTur1(struct weapon_obj_struct *wobj) {
+	field_obj *fobj;
+	if (!(fobj=findEmptyFieldObject())) return;
+	dbg_sprintf(dbgout,"Empty field object ptr %i\n",fobj);
+	fobj->flag = FOB_PBUL;
+	setShotStats(fobj,wobj,1024);
+	fobj->fMov = smallShotMove;
+}
+void shotTur2(struct weapon_obj_struct *wobj) {
+	
+}
+void shotTur3(struct weapon_obj_struct *wobj) {
+	
+}
+void shotLas1(struct weapon_obj_struct *wobj) {
+	
+}
+void shotLas2(struct weapon_obj_struct *wobj) {
+	
+}
+void shotLas3(struct weapon_obj_struct *wobj) {
+	
+}
+void shotMis1(struct weapon_obj_struct *wobj) {
+	
+}
+void shotMis2(struct weapon_obj_struct *wobj) {
+	
+}
+void shotMis3(struct weapon_obj_struct *wobj) {
+	
+}
+
+
+
+
 
 
 

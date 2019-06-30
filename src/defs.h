@@ -92,6 +92,7 @@ enum ESTAT { EDIT_SELECT=1,COLOR_SELECT=2,FILE_SELECT=4,NOW_PAINTING=8,
 			 PICKING_COLOR=16,OTHER_CONFIRM=32,QUIT_CONFIRM=128};
 enum PANEL { PAN_INV=1,PAN_LIM=2,PAN_RIGHT=4,PAN_CURSEL=8,PAN_STATUS=16,
 			 PAN_GRID=32,PAN_FULLSCREEN=64,PAN_PREVIEW=128};
+enum FIELDOBJ {FOB_PBUL=1,FOB_EBUL=2,FOB_ITEM=4,FOB_EFFECT=16};
 //
 
 
@@ -137,6 +138,34 @@ typedef struct blockprop_obj_struct {
 	char *name;         	//Display name of object in question
 } blockprop_obj;
 
+typedef struct field_obj_struct {
+	uint8_t id;
+	uint8_t flag;  //Should use FIELDOBJ enum for populating this
+	uint8_t counter;
+	uint8_t power;
+	unsigned int data;
+	fp168 x,y,dx,dy;
+	void (*fMov)(struct field_obj_struct *fobj);
+} field_obj;
+typedef struct enemy_obj_struct {
+	uint8_t id;
+	fp168 x,y;
+	int timer,data1,data2;
+	uint8_t *s_loop1,*s_loop2,s_loop1ct,s_loop2ct,s_acc,s_rad,s_ang;
+	int hp;
+	uint8_t armor;
+	uint8_t hbx,hby; //Trickery needs to be done here. x dimension is half-res
+	uint8_t hbw,hbh; //to keep in uint8_t and to improve performance (on ASM write)
+	uint8_t *moveScript;
+} enemy_obj;
+typedef struct weapon_obj_struct {
+	uint8_t xoffset,yoffset;
+	uint8_t fire_direction;
+	uint8_t cooldown;
+	uint8_t cooldown_on_firing; //Use this to set cooldown after firing
+	uint8_t power;              //Strength of the bullet that it fires
+	void (*fMov)(struct weapon_obj_struct *wobj);
+} weapon_obj;
 
 
 
