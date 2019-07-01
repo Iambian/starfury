@@ -147,11 +147,15 @@ typedef struct field_obj_struct {
 	fp168 x,y,dx,dy;
 	void (*fMov)(struct field_obj_struct *fobj);
 } field_obj;
+typedef struct enobj_loop_struct { uint8_t *ptr,cnt; } enobj_loop;
 typedef struct enemy_obj_struct {
 	uint8_t id;
 	fp168 x,y;
 	int timer,data1,data2;
-	uint8_t *s_loop1,*s_loop2,s_loop1ct,s_loop2ct,s_acc,s_rad,s_ang;
+	uint8_t loopdepth;
+	enobj_loop s_loop[4];
+	uint8_t s_acc,s_rad,s_ang,s_dang;
+	uint8_t s_circx,s_circy;
 	int hp;
 	uint8_t armor;
 	uint8_t hbx,hby; //Trickery needs to be done here. x dimension is half-res
@@ -164,7 +168,7 @@ typedef struct weapon_obj_struct {
 	uint8_t cooldown;
 	uint8_t cooldown_on_firing; //Use this to set cooldown after firing
 	uint8_t power;              //Strength of the bullet that it fires
-	void (*fMov)(struct weapon_obj_struct *wobj);
+	void (*fShot)(struct weapon_obj_struct *wobj);
 } weapon_obj;
 
 
