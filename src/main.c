@@ -41,11 +41,9 @@
 
 
 
-/* Put your function prototypes here */
-void generateEnemy(int );
-field_obj *findEmptyFieldObject(void);
-void setShotStats(field_obj *fobj, weapon_obj *wobj, int velocity);
 
+/* Put your function prototypes here */
+void setShotStats(field_obj *fobj, weapon_obj *wobj, int velocity);
 
 void shotTur1(struct weapon_obj_struct *wobj);
 void shotTur2(struct weapon_obj_struct *wobj);
@@ -56,7 +54,6 @@ void shotLas3(struct weapon_obj_struct *wobj);
 void shotMis1(struct weapon_obj_struct *wobj);
 void shotMis2(struct weapon_obj_struct *wobj);
 void shotMis3(struct weapon_obj_struct *wobj);
-
 
 
 
@@ -73,15 +70,16 @@ gfx_sprite_t *tempblock_scratch;
 gfx_sprite_t *tempblock_smallscratch;
 
 
-field_obj  empty_fobj;
-enemy_obj  empty_eobj;
-weapon_obj empty_wobj;
 
 /* Globals and defines that will be moved out to a new file once done testing */
 uint8_t maintimer;
 field_obj *fobjs;
 enemy_obj *eobjs;
 weapon_obj *wobjs;
+field_obj  empty_fobj;
+enemy_obj  empty_eobj;
+weapon_obj empty_wobj;
+enemy_data empty_edat;
 
 fp168 playerx,playery;
 int player_curhp;  //Maximums and other stats located in bpstats struct
@@ -257,26 +255,6 @@ void main(void) {
 
 
 
-/*
-void setup_palette(void) {
-	int i;
-	uint16_t *palette,tempcolor;
-	palette = (uint16_t*)0xE30200;  //512 byte palette. arranged 0b_IBBB_BBGG_GGGR_RRRR
-	i = 0;
-	do {
-		//i = 0b_II_RR_GG_BB. First intensity, then color.
-		//Process red first. Write to low %000RRII0
-		tempcolor = ((i>>5)&(3<<1))|((i>>1)&(3<<3));
-		//Process green next. Write to full %000000GG.II000000
-		tempcolor |= ((i<<0)&(3<<6))|((i<<6)&(3<<8));
-		//Process blue last. Write to last %0BBII000
-		tempcolor |= ((i<<5)&(3<<11))|((i<<11)&(3<<13));
-		//Then write the color data out to memory
-		palette[i] = tempcolor;
-	} while (++i<256);
-	return;
-}
-*/
 
 field_obj *findEmptyFieldObject(void) {
 	static int i=0; //Persist so i never has to travel too far to find next empty
@@ -358,7 +336,6 @@ void shotMis3(struct weapon_obj_struct *wobj) {
 
 
 
-
 void waitanykey(void) {
 	keywait();            //wait until all keys are released
 	while (!kb_AnyKey()); //wait until a key has been pressed.
@@ -376,3 +353,26 @@ void error(char *msg) {
 	os_PutStrFull(msg);
 	exit(1);
 }
+
+
+
+/*
+void setup_palette(void) {
+	int i;
+	uint16_t *palette,tempcolor;
+	palette = (uint16_t*)0xE30200;  //512 byte palette. arranged 0b_IBBB_BBGG_GGGR_RRRR
+	i = 0;
+	do {
+		//i = 0b_II_RR_GG_BB. First intensity, then color.
+		//Process red first. Write to low %000RRII0
+		tempcolor = ((i>>5)&(3<<1))|((i>>1)&(3<<3));
+		//Process green next. Write to full %000000GG.II000000
+		tempcolor |= ((i<<0)&(3<<6))|((i<<6)&(3<<8));
+		//Process blue last. Write to last %0BBII000
+		tempcolor |= ((i<<5)&(3<<11))|((i<<11)&(3<<13));
+		//Then write the color data out to memory
+		palette[i] = tempcolor;
+	} while (++i<256);
+	return;
+}
+*/

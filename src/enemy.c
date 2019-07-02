@@ -15,9 +15,10 @@
 
 #include "main.h"
 #include "defs.h"
+#include "gfx/out/enemy_gfx.h"
 
-#define S_MOVX(dx)      0,x,
-#define S_MOVY(dy)      1,y,
+#define S_MOVX(dx)      0,dx,
+#define S_MOVY(dy)      1,dy,
 #define S_MOVXY(dx,dy)  2,dx,dy,
 #define S_LOOP(ct)      3,ct,
 //trace along a circle starting at ang moving at dang along radius rad for ct cycles (using a loop slot)
@@ -30,13 +31,26 @@
 #define S_SUSPEND 9,
 //Actually do the trace. This cmd implies a SUSPEND action
 #define S_TRACE 10,
+//Shoot at angle acc with rnd being 0-255. 0=never shoot, 255=always shoot.
+#define S_SHOOTRAND(rnd) 11,rnd,
+#define S_SELFDESTRUCT 12,
 
+/* Function prototypes */
+void enShot1(enemy_obj *eobj,uint8_t angle);
+
+
+
+/* Globals and consts */
+enemy_data testEnemyData;
+uint8_t testEnemyScript[];
+
+
+int8_t costab[] = {127,126,126,126,126,126,125,125,124,123,123,122,121,120,119,118,117,116,114,113,112,110,108,107,105,103,102,100,98,96,94,91,89,87,85,82,80,78,75,73,70,67,65,62,59,57,54,51,48,45,42,39,36,33,30,27,24,21,18,15,12,9,6,3,0,-3,-6,-9,-12,-15,-18,-21,-24,-27,-30,-33,-36,-39,-42,-45,-48,-51,-54,-57,-59,-62,-65,-67,-70,-73,-75,-78,-80,-82,-85,-87,-89,-91,-94,-96,-98,-100,-102,-103,-105,-107,-108,-110,-112,-113,-114,-116,-117,-118,-119,-120,-121,-122,-123,-123,-124,-125,-125,-126,-126,-126,-126,-126,-127,-126,-126,-126,-126,-126,-125,-125,-124,-123,-123,-122,-121,-120,-119,-118,-117,-116,-114,-113,-112,-110,-108,-107,-105,-103,-102,-100,-98,-96,-94,-91,-89,-87,-85,-82,-80,-78,-75,-73,-70,-67,-65,-62,-59,-57,-54,-51,-48,-45,-42,-39,-36,-33,-30,-27,-24,-21,-18,-15,-12,-9,-6,-3,0,3,6,9,12,15,18,21,24,27,30,33,36,39,42,45,48,51,54,57,59,62,65,67,70,73,75,78,80,82,85,87,89,91,94,96,98,100,102,103,105,107,108,110,112,113,114,116,117,118,119,120,121,122,123,123,124,125,125,126,126,126,126,126};
 uint8_t ens_instr_len[] = {
 	//00,01,02,03,04,05,06,07,08,09,10,11,12,13,14,15,16,17,18,19
-	   2, 2, 3, 2, 5, 2, 2, 1, 1, 1, 1,
+	   2, 2, 3, 2, 5, 2, 2, 1, 1, 1, 1, 2, 
 	//20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39
 };
-//uint8_t *s_loop1,*s_loop2,s_loop1ct,s_loop2ct,s_acc,s_rad,s_ang;
 
 
 
@@ -48,14 +62,14 @@ void parseEnemy(enemy_obj *eobj,uint8_t **scriptPtr) {
 	while (1) {
 		switch (*sptr) {
 			case 0: //movx
-				eobj->x.p.ipart += sptr[1];
+				eobj->x.p.ipart += (int8_t)(sptr[1]);
 				break;
 			case 1: //movy
-				eobj->y.p.ipart += sptr[1];
+				eobj->y.p.ipart += (int8_t)(sptr[1]);
 				break;
 			case 2: //movxy
-				eobj->x.p.ipart += sptr[1];
-				eobj->y.p.ipart += sptr[2];
+				eobj->x.p.ipart += (int8_t)(sptr[1]);
+				eobj->y.p.ipart += (int8_t)(sptr[2]);
 				break;
 			case 3: //loop
 				t = eobj->loopdepth;
@@ -82,6 +96,9 @@ void parseEnemy(enemy_obj *eobj,uint8_t **scriptPtr) {
 				eobj->s_acc += sptr[1];
 				break;
 			case 7: //shoot
+				
+				
+				
 				//probably should set up a firing routine? probably on init.
 				break;
 			case 8: //loopend
@@ -99,6 +116,14 @@ void parseEnemy(enemy_obj *eobj,uint8_t **scriptPtr) {
 			case 10: //trace
 				//Probably should set up some fancy 8-bit trig stuff.
 				break;
+			case 11: //shootrand
+				//shoot a bullet using enemy's saved bullet routine but only
+				//if it passes the random thing
+				break;
+			case 12: //selfdestruct
+				eobj->id = 0;
+				//maybe insert a field object depicting an explosion?
+				break;
 			default:
 				return;  //Stop script if run into undefined command
 		}
@@ -106,7 +131,72 @@ void parseEnemy(enemy_obj *eobj,uint8_t **scriptPtr) {
 	}
 }
 
+enemy_obj *findEmptyEnemy(void) {
+	uint8_t i;
+	
+	for (i=0;i<MAX_ENEMY_OBJECTS;i++) {
+		if (!(eobjs[i].id))
+			return &eobjs[i];
+	}
+	return NULL;
+}
 
+enemy_obj *generateEnemy(enemy_data *edat) {
+	enemy_obj *eobj;
+	
+	if (!(eobj = findEmptyEnemy())) return NULL;
+	memset(eobj,0,sizeof empty_eobj);
+	memcpy(eobj,edat,sizeof empty_edat);
+	if (!eobj->sprite) eobj->sprite = (gfx_sprite_t*)enemy1_data;
+	if (!eobj->moveScript) eobj->moveScript = testEnemyScript;
+	if (!eobj->fShoot) eobj->fShoot = enShot1;
+	
+	return eobj;
+}
+
+
+void enShot1(enemy_obj *eobj,uint8_t angle) {
+	
+	field_obj *fobj;
+	if (!(fobj = findEmptyFieldObject())) return;  //No free objs to create
+	fobj->flag = FOB_EBUL;
+	fobj->power = eobj->atk;
+	
+	fobj->x.fp = eobj->x.fp + eobj->sprite->width*128;  // div 2, times 256
+	fobj->y.fp = eobj->y.fp + eobj->sprite->height*128; // div 2, times 256
+	fobj->dx.fp = costab[angle]*256;
+	fobj->dy.fp = costab[(uint8_t)(angle+64)]*256;
+	fobj->fMov = smallShotMove;
+	
+}
+
+
+enemy_data testEnemyData = {1,100,1,1,NULL,NULL,NULL};
+uint8_t testEnemyScript[] = {
+	S_LOOP(50)
+		S_MOVX(-1)
+		S_SUSPEND
+	S_LOOPEND
+	S_LOOP(20)
+		S_LOOP(5)
+			S_MOVX(1)
+			S_SUSPEND
+		S_LOOPEND
+		S_LOOP(5)
+			S_MOVY(1)
+			S_SUSPEND
+		S_LOOPEND
+		S_LOOP(5)
+			S_MOVX(-1)
+			S_SUSPEND
+		S_LOOPEND
+		S_LOOP(5)
+			S_MOVY(-1)
+			S_SUSPEND
+		S_LOOPEND
+	S_LOOPEND
+	S_SELFDESTRUCT
+};
 
 
 

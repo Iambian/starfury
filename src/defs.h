@@ -147,20 +147,32 @@ typedef struct field_obj_struct {
 	fp168 x,y,dx,dy;
 	void (*fMov)(struct field_obj_struct *fobj);
 } field_obj;
+typedef struct enemy_data_struct {
+	uint8_t id;
+	int hp;
+	uint8_t atk,def;
+	gfx_sprite_t *sprite;
+	uint8_t *moveScript;
+	void (*fShoot)(struct enemy_obj_struct *eobj,uint8_t angle);
+} enemy_data;
 typedef struct enobj_loop_struct { uint8_t *ptr,cnt; } enobj_loop;
 typedef struct enemy_obj_struct {
 	uint8_t id;
+	int hp;
+	uint8_t atk,def;
+	gfx_sprite_t *sprite;
+	uint8_t *moveScript;
+	void (*fShoot)(struct enemy_obj_struct *eobj,uint8_t angle);
+	
 	fp168 x,y;
+	uint8_t hbx,hby; //Trickery needs to be done here. x dimension is half-res
+	uint8_t hbw,hbh; //to keep in uint8_t and to improve performance (on ASM write)
 	int timer,data1,data2;
 	uint8_t loopdepth;
 	enobj_loop s_loop[4];
 	uint8_t s_acc,s_rad,s_ang,s_dang;
-	uint8_t s_circx,s_circy;
-	int hp;
-	uint8_t armor;
-	uint8_t hbx,hby; //Trickery needs to be done here. x dimension is half-res
-	uint8_t hbw,hbh; //to keep in uint8_t and to improve performance (on ASM write)
-	uint8_t *moveScript;
+	uint8_t s_circy;
+	int s_circx;
 } enemy_obj;
 typedef struct weapon_obj_struct {
 	uint8_t xoffset,yoffset;
