@@ -37,7 +37,7 @@
 
 /* Function prototypes */
 void enShot1(enemy_obj *eobj,uint8_t angle);
-
+void setCollisionField(enemy_obj *eobj);
 
 
 /* Globals and consts */
@@ -48,7 +48,7 @@ uint8_t testEnemyScript[];
 int8_t costab[] = {127,126,126,126,126,126,125,125,124,123,123,122,121,120,119,118,117,116,114,113,112,110,108,107,105,103,102,100,98,96,94,91,89,87,85,82,80,78,75,73,70,67,65,62,59,57,54,51,48,45,42,39,36,33,30,27,24,21,18,15,12,9,6,3,0,-3,-6,-9,-12,-15,-18,-21,-24,-27,-30,-33,-36,-39,-42,-45,-48,-51,-54,-57,-59,-62,-65,-67,-70,-73,-75,-78,-80,-82,-85,-87,-89,-91,-94,-96,-98,-100,-102,-103,-105,-107,-108,-110,-112,-113,-114,-116,-117,-118,-119,-120,-121,-122,-123,-123,-124,-125,-125,-126,-126,-126,-126,-126,-127,-126,-126,-126,-126,-126,-125,-125,-124,-123,-123,-122,-121,-120,-119,-118,-117,-116,-114,-113,-112,-110,-108,-107,-105,-103,-102,-100,-98,-96,-94,-91,-89,-87,-85,-82,-80,-78,-75,-73,-70,-67,-65,-62,-59,-57,-54,-51,-48,-45,-42,-39,-36,-33,-30,-27,-24,-21,-18,-15,-12,-9,-6,-3,0,3,6,9,12,15,18,21,24,27,30,33,36,39,42,45,48,51,54,57,59,62,65,67,70,73,75,78,80,82,85,87,89,91,94,96,98,100,102,103,105,107,108,110,112,113,114,116,117,118,119,120,121,122,123,123,124,125,125,126,126,126,126,126};
 uint8_t ens_instr_len[] = {
 	//00,01,02,03,04,05,06,07,08,09,10,11,12,13,14,15,16,17,18,19
-	   2, 2, 3, 2, 5, 2, 2, 1, 1, 1, 1, 2, 
+	   2, 2, 3, 2, 5, 2, 2, 1, 1, 1, 1, 2, 1
 	//20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39
 };
 
@@ -57,19 +57,23 @@ uint8_t ens_instr_len[] = {
 //Pointer to script pointer to allow the parser to update to next position
 void parseEnemy(enemy_obj *eobj,uint8_t **scriptPtr) {
 	uint8_t *sptr,t,i;
-	sptr = *scriptPtr;
 	
 	while (1) {
+		sptr = *scriptPtr;
+		//dbg_sprintf(dbgout,"enobj: %i, sptr: %i, sptrval: %i\n",eobj,sptr,*sptr);
 		switch (*sptr) {
 			case 0: //movx
 				eobj->x.p.ipart += (int8_t)(sptr[1]);
+				setCollisionField(eobj);
 				break;
 			case 1: //movy
 				eobj->y.p.ipart += (int8_t)(sptr[1]);
+				setCollisionField(eobj);
 				break;
 			case 2: //movxy
 				eobj->x.p.ipart += (int8_t)(sptr[1]);
 				eobj->y.p.ipart += (int8_t)(sptr[2]);
+				setCollisionField(eobj);
 				break;
 			case 3: //loop
 				t = eobj->loopdepth;
@@ -96,10 +100,7 @@ void parseEnemy(enemy_obj *eobj,uint8_t **scriptPtr) {
 				eobj->s_acc += sptr[1];
 				break;
 			case 7: //shoot
-				
-				
-				
-				//probably should set up a firing routine? probably on init.
+				eobj->fShoot(eobj,eobj->s_acc);
 				break;
 			case 8: //loopend
 				t = eobj->loopdepth-1;
@@ -115,18 +116,25 @@ void parseEnemy(enemy_obj *eobj,uint8_t **scriptPtr) {
 				return;          //then stop executing for this cycle
 			case 10: //trace
 				//Probably should set up some fancy 8-bit trig stuff.
+				setCollisionField(eobj);
 				break;
 			case 11: //shootrand
+				if (t = randInt(0,255)) { //Single equal is correct. storing to t.
+					if (t >= sptr[1]) {
+						eobj->fShoot(eobj,eobj->s_acc);
+					}
+				}
 				//shoot a bullet using enemy's saved bullet routine but only
 				//if it passes the random thing
 				break;
 			case 12: //selfdestruct
 				eobj->id = 0;
 				//maybe insert a field object depicting an explosion?
-				break;
+				return;  //This should not continue
 			default:
 				return;  //Stop script if run into undefined command
 		}
+		//dbg_sprintf(dbgout,"Looping around\n");
 		scriptPtr[0] += ens_instr_len[sptr[0]];
 	}
 }
@@ -151,6 +159,9 @@ enemy_obj *generateEnemy(enemy_data *edat) {
 	if (!eobj->moveScript) eobj->moveScript = testEnemyScript;
 	if (!eobj->fShoot) eobj->fShoot = enShot1;
 	
+	eobj->hbw = eobj->sprite->width;
+	eobj->hbh = eobj->sprite->height;
+	
 	return eobj;
 }
 
@@ -164,36 +175,51 @@ void enShot1(enemy_obj *eobj,uint8_t angle) {
 	
 	fobj->x.fp = eobj->x.fp + eobj->sprite->width*128;  // div 2, times 256
 	fobj->y.fp = eobj->y.fp + eobj->sprite->height*128; // div 2, times 256
-	fobj->dx.fp = costab[angle]*256;
-	fobj->dy.fp = costab[(uint8_t)(angle+64)]*256;
+	fobj->dx.fp = (int)(costab[angle])*4;
+	fobj->dy.fp = (int)(costab[(uint8_t)(angle+64)])*4;
 	fobj->fMov = smallShotMove;
 	
 }
+
+void setCollisionField(enemy_obj *eobj) {
+	unsigned int t;
+	t = (eobj->x.p.ipart);
+	if (t>320) t=0;
+	else: t >>= 1;
+	eobj->hbx = (uint8_t) t;
+	t = (eobj->y.p.ipart);
+	if (t>240) t=0;
+	eobj->hby = (uint8_t) t;
+	//hitbox height and width is set during enemy initialization
+}
+
 
 
 enemy_data testEnemyData = {1,100,1,1,NULL,NULL,NULL};
 uint8_t testEnemyScript[] = {
 	S_LOOP(50)
-		S_MOVX(-1)
+		S_MOVX(-3)
 		S_SUSPEND
 	S_LOOPEND
+	S_SETACC(128)
 	S_LOOP(20)
-		S_LOOP(5)
+		S_LOOP(15)
 			S_MOVX(1)
 			S_SUSPEND
 		S_LOOPEND
-		S_LOOP(5)
+		S_LOOP(15)
 			S_MOVY(1)
 			S_SUSPEND
 		S_LOOPEND
-		S_LOOP(5)
+		S_LOOP(15)
 			S_MOVX(-1)
 			S_SUSPEND
 		S_LOOPEND
-		S_LOOP(5)
+		S_LOOP(15)
 			S_MOVY(-1)
 			S_SUSPEND
 		S_LOOPEND
+		S_SHOOT
 	S_LOOPEND
 	S_SELFDESTRUCT
 };

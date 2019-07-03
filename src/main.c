@@ -98,6 +98,7 @@ void main(void) {
 	field_obj *fobjs_end;
 	uint8_t i,k,update_flags,tx,ty,t,limit;
 	uint8_t tt;
+	enemy_obj *eobj;
 
     gfx_Begin(gfx_8bpp);
 	gfx_SetDrawBuffer();
@@ -172,6 +173,27 @@ void main(void) {
 		}
 	}
 	
+	//Insert debug generation
+	
+	eobj = generateEnemy(&testEnemyData);
+	eobj->x.p.ipart = 420; eobj->y.p.ipart = 30;
+	eobj = generateEnemy(&testEnemyData);
+	eobj->x.p.ipart = 400; eobj->y.p.ipart = 50;
+	eobj = generateEnemy(&testEnemyData);
+	eobj->x.p.ipart = 380; eobj->y.p.ipart = 70;
+	eobj = generateEnemy(&testEnemyData);
+	eobj->x.p.ipart = 360; eobj->y.p.ipart = 90;
+	eobj = generateEnemy(&testEnemyData);
+	eobj->x.p.ipart = 340; eobj->y.p.ipart = 110;
+	eobj = generateEnemy(&testEnemyData);
+	eobj->x.p.ipart = 360; eobj->y.p.ipart = 130;
+	eobj = generateEnemy(&testEnemyData);
+	eobj->x.p.ipart = 380; eobj->y.p.ipart = 150;
+	eobj = generateEnemy(&testEnemyData);
+	eobj->x.p.ipart = 400; eobj->y.p.ipart = 170;
+	eobj = generateEnemy(&testEnemyData);
+	eobj->x.p.ipart = 420; eobj->y.p.ipart = 190;
+	
 	
 	keywait();
 	// I think we have enough object memory allocated and initialized?
@@ -214,6 +236,14 @@ void main(void) {
 		
 		
 		gfx_FillScreen(COLOR_BLACK);
+		//Render and move all enemy sprites
+		for (i=0;i<MAX_ENEMY_OBJECTS;i++) {
+			if ((eobj = &eobjs[i])->id) {
+				gfx_TransparentSprite(eobj->sprite,eobj->x.p.ipart,eobj->y.p.ipart);
+				parseEnemy(eobj,&(eobj->moveScript));
+			}
+		}
+		
 		
 		//Render player ship
 		gfx_TransparentSprite_NoClip(mainsprite,playerx.p.ipart,playery.p.ipart);
@@ -227,8 +257,8 @@ void main(void) {
 		// At end of cycle, reduce cooldown timers on all weapons
 		for (i=0;i<bpstats.wpn;i++) if (wobjs[i].cooldown) --(wobjs[i].cooldown);
 		
-		
 		gfx_BlitBuffer();
+		//gfx_SwapDraw();
 		
 	}
 	
