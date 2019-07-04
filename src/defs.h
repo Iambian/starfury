@@ -173,6 +173,7 @@ typedef struct enemy_obj_struct {
 	uint8_t s_acc,s_rad,s_ang,s_dang;
 	uint8_t s_circy;
 	int s_circx;
+	uint8_t hitcounter; //increment by 2, invert on every nonzero even
 } enemy_obj;
 typedef struct weapon_obj_struct {
 	uint8_t xoffset,yoffset;

@@ -2,6 +2,9 @@ XDEF _fn_DrawNestedSprite
 XDEF _fn_FillSprite
 XDEF _fn_Setup_Palette
 XDEF _fn_PaintSprite
+XDEF _fn_InvertSprite
+
+XREF _transparent_color
 
 .ASSUME ADL=1
 
@@ -144,6 +147,32 @@ paintSpriteSkip:
 	RET
 	
 
+;in:	arg0=spriteAdr
+;       +3            
+_fn_InvertSprite:
+	POP	BC  ;RETURN ADDRESS
+	POP	HL  ;SPRITE ADDRESS
+	PUSH HL
+	PUSH BC ;REWIND STACK
+	LD	C,(HL)
+	INC	HL
+	LD	B,(HL)
+	INC	HL
+	LD	A,(_transparent_color)
+	LD	E,A
+fn_inverspriteloop:
+	LD	A,(HL)
+	CP	E
+	JR	Z,fn_invertsprite_skip
+	CPL
+	LD	(HL),A
+fn_invertsprite_skip:
+	INC	HL
+	DEC BC
+	LD	A,C
+	OR	A,B
+	JR NZ,fn_inverspriteloop
+	RET
 
 
 

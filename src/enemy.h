@@ -15,6 +15,7 @@
 void parseEnemy(enemy_obj *eobj,uint8_t **scriptPtr);
 enemy_obj *findEmptyEnemy(void);
 enemy_obj *generateEnemy(enemy_data *edat);
+void destroyEnemy(enemy_obj *eobj);
 
 //Maybe export these?
 void enShot1(enemy_obj *eobj,uint8_t angle);

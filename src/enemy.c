@@ -15,6 +15,7 @@
 
 #include "main.h"
 #include "defs.h"
+#include "util.h"
 #include "gfx/out/enemy_gfx.h"
 
 #define S_MOVX(dx)      0,dx,
@@ -165,6 +166,14 @@ enemy_obj *generateEnemy(enemy_data *edat) {
 	return eobj;
 }
 
+void destroyEnemy(enemy_obj *eobj) {
+	eobj->id = 0;
+	//Later on, do things that make explosions and do item drops
+}
+
+
+
+
 
 void enShot1(enemy_obj *eobj,uint8_t angle) {
 	
@@ -185,7 +194,7 @@ void setCollisionField(enemy_obj *eobj) {
 	unsigned int t;
 	t = (eobj->x.p.ipart);
 	if (t>320) t=0;
-	else: t >>= 1;
+	else t >>= 1;
 	eobj->hbx = (uint8_t) t;
 	t = (eobj->y.p.ipart);
 	if (t>240) t=0;

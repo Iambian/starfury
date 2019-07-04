@@ -58,7 +58,7 @@ void shotMis3(struct weapon_obj_struct *wobj);
 
 
 
-
+const uint8_t transparent_color = TRANSPARENT_COLOR;
 void keywait(void);
 void waitanykey(void);
 void error(char *msg);
@@ -124,7 +124,7 @@ void main(void) {
 	/* INITIALIZE DEBUG LOGIC */
 	
 	//openEditor();  //DEBUGGING: EDITOR
-	//shipSelect();  //DEBUGGING: SHIP SELECTION
+	shipSelect();  //DEBUGGING: SHIP SELECTION
 	
 	//Initialize gameplay test environment
 	loadBuiltinBlueprint(0);      //Load first builtin blueprint
@@ -239,7 +239,12 @@ void main(void) {
 		//Render and move all enemy sprites
 		for (i=0;i<MAX_ENEMY_OBJECTS;i++) {
 			if ((eobj = &eobjs[i])->id) {
+				if (eobj->hitcounter && !(eobj->hitcounter&1)) fn_InvertSprite(eobj->sprite);
 				gfx_TransparentSprite(eobj->sprite,eobj->x.p.ipart,eobj->y.p.ipart);
+				if (eobj->hitcounter) {
+					if (!(eobj->hitcounter&1)) fn_InvertSprite(eobj->sprite);
+					--(eobj->hitcounter);
+				}
 				parseEnemy(eobj,&(eobj->moveScript));
 			}
 		}
@@ -285,7 +290,6 @@ void main(void) {
 
 
 
-
 field_obj *findEmptyFieldObject(void) {
 	static int i=0; //Persist so i never has to travel too far to find next empty
 	int prev;
@@ -315,6 +319,7 @@ void setShotStats(field_obj *fobj, weapon_obj *wobj, int velocity) {
 uint8_t smallshotdat[] = {3,3, 0,255,0, 255,255,255, 0,255,0};
 void smallShotMove(struct field_obj_struct *fobj) {
 	int tempfxp;
+	uint8_t bx,by,i;
 	if ((unsigned int)(tempfxp = fobj->x.fp + fobj->dx.fp) >= ((320-3)*256)) {
 		fobj->flag = 0;  //destroy object
 		return;
@@ -323,6 +328,23 @@ void smallShotMove(struct field_obj_struct *fobj) {
 		fobj->flag = 0;  //destroy object
 		return;
 	} else fobj->y.fp = tempfxp;
+	//Run bullet collision. Bullet hitbox is single point dead center
+	if (fobj->flag & FOB_PBUL) {
+		bx = ((fobj->x.p.ipart)>>1)+1;
+		by = (fobj->y.p.ipart)+1;
+		for (i=0;i<MAX_ENEMY_OBJECTS;i++) {
+			if (eobjs[i].id && (bx>=eobjs[i].hbx && bx<(eobjs[i].hbx+eobjs[i].hbw)) && (by>=eobjs[i].hby && by<(eobjs[i].hby+eobjs[i].hbh))) {
+				eobjs[i].hitcounter += 2;
+				if ((eobjs[i].hp -= fobj->power)<0) destroyEnemy(&eobjs[i]);
+				fobj->flag = 0; //destroy bullet
+			}
+		}
+	} else if (fobj->flag & FOB_EBUL) {
+		
+		
+		
+	}
+	//Draw. This won't be reached if the bullet collided with something.
 	gfx_TransparentSprite_NoClip((gfx_sprite_t*)smallshotdat,fobj->x.p.ipart,fobj->y.p.ipart);
 }
 
