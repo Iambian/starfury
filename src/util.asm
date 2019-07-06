@@ -3,6 +3,12 @@ XDEF _fn_FillSprite
 XDEF _fn_Setup_Palette
 XDEF _fn_PaintSprite
 XDEF _fn_InvertSprite
+XDEF _fn_SetupTimer
+XDEF _fn_SetNewTimerValue
+XDEF _fn_ReadTimer
+XDEF _fn_CheckTimer
+XDEF _fn_StopTimer
+
 
 XREF _transparent_color
 
@@ -146,6 +152,13 @@ paintSpriteSkip:
 	JR	NZ,paintSpriteLoop
 	RET
 	
+TimerValue:
+DB 0,0,1
+;30fps = 32768/30 ~~ 1092.2
+NEW_TIMER_VALUES: 
+DB 00h,00h,00h,00h
+DB 0FFh,0FFh,0FFh,0FFh
+NEW_TIMER_VALUES_END:
 
 ;in:	arg0=spriteAdr
 ;       +3            
@@ -175,6 +188,64 @@ fn_invertsprite_skip:
 	RET
 
 
+_fn_StopTimer:
+	LD	IY,0F20000h
+	XOR	A,A
+	SBC HL,HL
+	LD	(IY+30h),HL   ;TCTRLR - RESET ALL BITS, TURNING OFF TIMERS
+	RET
+
+;in:	arg0=timerResetValue
+;       +3  
+_fn_SetupTimer:
+	CALL _fn_StopTimer
+	LEA	DE,IY+0
+	LD	HL,NEW_TIMER_VALUES
+	LD	BC,NEW_TIMER_VALUES_END-NEW_TIMER_VALUES
+	LDIR
+	LD	HL,1092
+	LD	(TimerValue),HL
+	LD	(IY+30h),00000011b  ;timer1 on, timer1 src xtal
+	RET
+	
+_fn_SetNewTimerValue:
+	POP	BC
+	POP	HL
+	PUSH	HL
+	PUSH	BC
+	LD	(TimerValue),HL
+	RET
+
+;returns timer as int	
+_fn_ReadTimer:
+	LD HL,(0F20000h)
+	RET
+	
+;return value: 0=fine, nonzero=underflowed and reset
+_fn_CheckTimer:
+	LD	IY,0F20000h
+	XOR	A,A
+	SBC	HL,HL
+	BIT	7,(IY+3)    ;check bit 31 of timer 1 value
+	RET	Z           ;no underflow. return now.
+	LD 	(IY+30h),A  ;turn off timers before beginning to modify them
+	LD	DE,(TimerValue)
+	LD	HL,(IY+0)
+checkTimerLoop:
+	ADD	HL,DE     ;account for lost time by refilling underflow by time interval
+	JR	NC,checkTimerLoop   ;but keep looping if we're that far in the hole
+	LD	(IY+0),HL   ;then set the (for sure) positive value
+	LD	(IY+3),A    
+	INC	A
+	SBC	HL,HL       ;results in 0xFFFFFF.
+	LD	(IY+30h),00000011b  ;timer1 on, timer1 src xtal
+	RET
+
+	
+
+	
+	
+	
 
 
 

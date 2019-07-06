@@ -81,10 +81,14 @@ enemy_obj  empty_eobj;
 weapon_obj empty_wobj;
 enemy_data empty_edat;
 
-fp168 playerx,playery;
-int player_curhp;  //Maximums and other stats located in bpstats struct
-
-
+typedef struct player_obj_struct {
+	fp168 x,y;
+	int hp,maxhp;
+	uint8_t hbxoff,hbyoff;
+	uint8_t hbw,hbh;
+	uint8_t hitcounter;
+} player_obj;
+player_obj player;
 
 
 void main(void) {
@@ -96,7 +100,8 @@ void main(void) {
 	blockprop_obj *bpo;
 	field_obj *fobjs_cur;
 	field_obj *fobjs_end;
-	uint8_t i,k,update_flags,tx,ty,t,limit;
+	uint8_t i,k,update_flags,tx,ty,tw,th,t,limit;
+	int dbg_time1,dbg_time2,dbg_time3;
 	uint8_t tt;
 	enemy_obj *eobj;
 
@@ -113,6 +118,7 @@ void main(void) {
 	tempblock_smallscratch = gfx_MallocSprite(PREVIEWBLOCK_MAX_W/2,PREVIEWBLOCK_MAX_H/2);
 
 	
+	dbg_time1 = dbg_time2 = dbg_time3 = 0;
 	ti_CloseAll();
 	/* Load save file */
 	
@@ -124,7 +130,7 @@ void main(void) {
 	/* INITIALIZE DEBUG LOGIC */
 	
 	//openEditor();  //DEBUGGING: EDITOR
-	shipSelect();  //DEBUGGING: SHIP SELECTION
+	//shipSelect();  //DEBUGGING: SHIP SELECTION
 	
 	//Initialize gameplay test environment
 	loadBuiltinBlueprint(0);      //Load first builtin blueprint
@@ -138,6 +144,7 @@ void main(void) {
 	memset(fobjs,0,MAX_FIELD_OBJECTS * (sizeof empty_fobj));
 	eobjs = malloc(MAX_ENEMY_OBJECTS * (sizeof empty_eobj));
 	memset(eobjs,0,MAX_ENEMY_OBJECTS * (sizeof empty_eobj));
+	memset(&player,0,sizeof player);
 	if (bpstats.wpn) {
 		wobjs = malloc(bpstats.wpn * (sizeof empty_wobj));
 		memset(wobjs,0,bpstats.wpn * (sizeof empty_wobj));
@@ -172,6 +179,25 @@ void main(void) {
 			++k;
 		}
 	}
+	//Set player collision boxes. For now, just hover over the command module
+	for (i=0;i<144;i++) {
+		gbo = &temp_bpgrid[i];
+		if (!gbo->block_id) continue;
+		bpo = &blockobject_list[gbo->block_id];
+		if (bpo->type & COMMAND) {
+			tw = bpo->w;
+			th = bpo->h;
+			if (gbo->orientation&1) { t = tw; tw = th; th = t; }
+			player.hbw = tw*2;
+			player.hbh = th*2;
+			t = 3-curblueprint->gridlevel;
+			player.hbxoff = 4*(gbo->x+offset);
+			player.hbyoff = 4*(gbo->y+offset);
+			
+			
+		}
+	}
+	
 	
 	//Insert debug generation
 	
@@ -196,7 +222,9 @@ void main(void) {
 	
 	
 	keywait();
+	fn_SetupTimer(1638);  //Run game at 20fps
 	// I think we have enough object memory allocated and initialized?
+	/* BEGIN MAIN LOOP */
 	while (1) {
 		kb_Scan();
 		kd = kb_Data[7];
@@ -214,24 +242,24 @@ void main(void) {
 		
 		
 		if (kd&kb_Left) {
-			if ((tempint = playerx.fp-(128*bpstats.spd))> 0) {
-				playerx.fp = tempint;
-			} else playerx.fp = 0;
+			if ((tempint = player.x.fp-(128*bpstats.spd))> 0) {
+				player.x.fp = tempint;
+			} else player.x.fp = 0;
 		}
 		if (kd&kb_Right) {
-			if ((tempint = playerx.fp+(128*bpstats.spd))< ((320-48)*256)) {
-				playerx.fp = tempint;
-			} else playerx.fp = ((320-48)*256);
+			if ((tempint = player.x.fp+(128*bpstats.spd))< ((320-48)*256)) {
+				player.x.fp = tempint;
+			} else player.x.fp = ((320-48)*256);
 		}
 		if (kd&kb_Up) {
-			if ((tempint = playery.fp-(128*bpstats.spd))> 0) {
-				playery.fp = tempint;
-			} else playery.fp = 0;
+			if ((tempint = player.y.fp-(128*bpstats.spd))> 0) {
+				player.y.fp = tempint;
+			} else player.y.fp = 0;
 		}
 		if (kd&kb_Down) {
-			if ((tempint = playery.fp+(128*bpstats.spd))< ((240-48)*256)) {
-				playery.fp = tempint;
-			} else playery.fp = ((240-48)*256);
+			if ((tempint = player.y.fp+(128*bpstats.spd))< ((240-48)*256)) {
+				player.y.fp = tempint;
+			} else player.y.fp = ((240-48)*256);
 		}
 		
 		
@@ -251,7 +279,7 @@ void main(void) {
 		
 		
 		//Render player ship
-		gfx_TransparentSprite_NoClip(mainsprite,playerx.p.ipart,playery.p.ipart);
+		gfx_TransparentSprite_NoClip(mainsprite,player.x.p.ipart,player.y.p.ipart);
 		//Render all field objects
 		for (fobjs_end=(fobjs_cur=fobjs)+MAX_FIELD_OBJECTS;fobjs_cur<fobjs_end;fobjs_cur++) {
 			if (fobjs_cur->flag && fobjs_cur->fMov) fobjs_cur->fMov(fobjs_cur);
@@ -262,11 +290,21 @@ void main(void) {
 		// At end of cycle, reduce cooldown timers on all weapons
 		for (i=0;i<bpstats.wpn;i++) if (wobjs[i].cooldown) --(wobjs[i].cooldown);
 		
-		gfx_BlitBuffer();
-		//gfx_SwapDraw();
+		dbg_time2 += (dbg_time1 = fn_ReadTimer());
+		if ((++dbg_time3)>15) {
+			dbg_time3 = 0;
+			dbg_time2 /= 16;
+			dbg_sprintf(dbgout,"Average time gap in frames: %i\n",dbg_time2);
+		}
+		gfx_SwapDraw();
+		while (!fn_CheckTimer());
+		
+		
+		//gfx_BlitBuffer();
 		
 	}
 	
+	fn_StopTimer();
 	//Battle system cleanup
 	free(fobjs);
 	free(eobjs);
@@ -304,8 +342,8 @@ field_obj *findEmptyFieldObject(void) {
 
 void setShotStats(field_obj *fobj, weapon_obj *wobj, int velocity) {
 	fobj->power = wobj->power;
-	fobj->x.fp = playerx.fp + (256*wobj->xoffset);
-	fobj->y.fp = playery.fp + (256*wobj->yoffset);
+	fobj->x.fp = player.x.fp + (256*wobj->xoffset);
+	fobj->y.fp = player.y.fp + (256*wobj->yoffset);
 	switch (wobj->fire_direction) {
 		case 0:  fobj->dx.fp = velocity ; fobj->dy.fp = 0        ; break;
 		case 1:  fobj->dx.fp = 0        ; fobj->dy.fp = velocity ; break;
@@ -352,7 +390,7 @@ void smallShotMove(struct field_obj_struct *fobj) {
 void shotTur1(struct weapon_obj_struct *wobj) {
 	field_obj *fobj;
 	if (!(fobj=findEmptyFieldObject())) return;
-	dbg_sprintf(dbgout,"Empty field object ptr %i\n",fobj);
+	//dbg_sprintf(dbgout,"Empty field object ptr %i\n",fobj);
 	fobj->flag = FOB_PBUL;
 	setShotStats(fobj,wobj,1024);
 	fobj->fMov = smallShotMove;

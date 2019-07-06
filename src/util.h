@@ -11,8 +11,11 @@ void fn_FillSprite(gfx_sprite_t *sprite, uint8_t color);
 void fn_Setup_Palette(void);
 void fn_PaintSprite(gfx_sprite_t *sprite, uint8_t color); //Turns all white-ish to color
 void fn_InvertSprite(gfx_sprite_t *sprite);
-
-
+void fn_SetupTimer(int initialValue);
+void fn_SetNewTimerValue(int newInitialValue); //can be called while timer is running
+int fn_ReadTimer(void);
+int fn_CheckTimer(void); //zero if still counting down, nonzero if underflowed
+void fn_StopTimer(void);
 
 
 #endif
