@@ -87,6 +87,7 @@ typedef struct player_obj_struct {
 	uint8_t hbxoff,hbyoff;
 	uint8_t hbw,hbh;
 	uint8_t hitcounter;
+	gfx_rletsprite_t *sprite1,*sprite2,*spriteinv1,*spriteinv2;
 } player_obj;
 player_obj player;
 
@@ -100,6 +101,7 @@ void main(void) {
 	blockprop_obj *bpo;
 	field_obj *fobjs_cur;
 	field_obj *fobjs_end;
+	gfx_rletsprite_t *temprletsprite;
 	uint8_t i,k,update_flags,tx,ty,tw,th,t,limit;
 	int dbg_time1,dbg_time2,dbg_time3;
 	uint8_t tt;
@@ -144,11 +146,18 @@ void main(void) {
 	memset(fobjs,0,MAX_FIELD_OBJECTS * (sizeof empty_fobj));
 	eobjs = malloc(MAX_ENEMY_OBJECTS * (sizeof empty_eobj));
 	memset(eobjs,0,MAX_ENEMY_OBJECTS * (sizeof empty_eobj));
-	memset(&player,0,sizeof player);
 	if (bpstats.wpn) {
 		wobjs = malloc(bpstats.wpn * (sizeof empty_wobj));
 		memset(wobjs,0,bpstats.wpn * (sizeof empty_wobj));
 	} else 	wobjs = NULL;
+	memset(&player,0,sizeof player);
+	player.sprite1 = gfx_ConvertMallocRLETSprite(mainsprite);
+	player.sprite2 = player.sprite1;
+	fn_InvertSprite(mainsprite);
+	player.spriteinv1 = gfx_ConvertMallocRLETSprite(mainsprite);
+	player.spriteinv2 = player.spriteinv1;
+	fn_InvertSprite(mainsprite);
+	
 	//Initialize weapon memory
 	for (k=i=0;i<curblueprint->numblocks;i++) {
 		bpo = &blockobject_list[(gbo = &curblueprint->blocks[i])->block_id];
@@ -191,10 +200,8 @@ void main(void) {
 			player.hbw = tw*2;
 			player.hbh = th*2;
 			t = 3-curblueprint->gridlevel;
-			player.hbxoff = 4*(gbo->x+offset);
-			player.hbyoff = 4*(gbo->y+offset);
-			
-			
+			player.hbxoff = 4*(gbo->x+t);
+			player.hbyoff = 4*(gbo->y+t);
 		}
 	}
 	
@@ -279,7 +286,14 @@ void main(void) {
 		
 		
 		//Render player ship
-		gfx_TransparentSprite_NoClip(mainsprite,player.x.p.ipart,player.y.p.ipart);
+		if (player.hitcounter && !(player.hitcounter&1)) {
+			temprletsprite = player.spriteinv1;
+		} else {
+			temprletsprite = player.sprite1;
+		}
+		if (player.hitcounter) --player.hitcounter;
+		gfx_RLETSprite_NoClip(temprletsprite,player.x.p.ipart,player.y.p.ipart);
+		
 		//Render all field objects
 		for (fobjs_end=(fobjs_cur=fobjs)+MAX_FIELD_OBJECTS;fobjs_cur<fobjs_end;fobjs_cur++) {
 			if (fobjs_cur->flag && fobjs_cur->fMov) fobjs_cur->fMov(fobjs_cur);
@@ -290,12 +304,9 @@ void main(void) {
 		// At end of cycle, reduce cooldown timers on all weapons
 		for (i=0;i<bpstats.wpn;i++) if (wobjs[i].cooldown) --(wobjs[i].cooldown);
 		
-		dbg_time2 += (dbg_time1 = fn_ReadTimer());
-		if ((++dbg_time3)>15) {
-			dbg_time3 = 0;
-			dbg_time2 /= 16;
-			dbg_sprintf(dbgout,"Average time gap in frames: %i\n",dbg_time2);
-		}
+		gfx_SetTextFGColor(COLOR_WHITE);
+		gfx_SetTextXY(0,0);
+		gfx_PrintInt(fn_ReadTimer(),5);
 		gfx_SwapDraw();
 		while (!fn_CheckTimer());
 		
@@ -309,6 +320,10 @@ void main(void) {
 	free(fobjs);
 	free(eobjs);
 	free(wobjs);
+	free(player.sprite1);
+	//free(player.sprite2);
+	free(player.spriteinv1);
+	//free(player.spriteinv2);
 	
 	
 	
@@ -357,7 +372,7 @@ void setShotStats(field_obj *fobj, weapon_obj *wobj, int velocity) {
 uint8_t smallshotdat[] = {3,3, 0,255,0, 255,255,255, 0,255,0};
 void smallShotMove(struct field_obj_struct *fobj) {
 	int tempfxp;
-	uint8_t bx,by,i;
+	uint8_t px,py,bx,by,i;
 	if ((unsigned int)(tempfxp = fobj->x.fp + fobj->dx.fp) >= ((320-3)*256)) {
 		fobj->flag = 0;  //destroy object
 		return;
@@ -378,9 +393,14 @@ void smallShotMove(struct field_obj_struct *fobj) {
 			}
 		}
 	} else if (fobj->flag & FOB_EBUL) {
-		
-		
-		
+		px = (player.x.p.ipart>>1) + player.hbxoff;
+		py = player.y.p.ipart + player.hbyoff;
+		bx = ((fobj->x.p.ipart)>>1)+1;
+		by = (fobj->y.p.ipart)+1;
+		if (bx>=px && bx>(px+player.hbw) && by>=py && by<(py+player.hbh)) {
+			player.hitcounter += 2;
+			//Checks for if the player HP is below 0 is done elsewhere in main
+		}
 	}
 	//Draw. This won't be reached if the bullet collided with something.
 	gfx_TransparentSprite_NoClip((gfx_sprite_t*)smallshotdat,fobj->x.p.ipart,fobj->y.p.ipart);
