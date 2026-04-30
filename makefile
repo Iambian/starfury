@@ -10,10 +10,19 @@
 NAME        ?= STARFURY
 DEBUGMODE   ?= DEBUG
 COMPRESSED  ?= NO
+QUICK_BATTLE ?=
 ICON        ?= iconc.png
 DESCRIPTION ?= "Intergalactic Space Taxi Starfury"
+ARCHIVED    ?= NO
 
 L ?= 
+PCSHIM_EXTRA_SOURCE_DIRS ?=
+
+CONFIG_TOOL ?= cedev-config
+ifeq ($(PC),1)
+CONFIG_TOOL = ..\..\bin\pcshim-config.bat
+PCSHIM_EXTRA_SOURCE_DIRS = host
+endif
 
 # ----------------------------
 # Specify source and output locations
@@ -30,4 +39,8 @@ GFXDIR ?= src/gfx
 
 USE_FLASH_FUNCTIONS ?= YES
 
-include $(CEDEV)/include/.makefile
+ifeq ($(strip $(QUICK_BATTLE)),1)
+CFLAGS += -DSTARFURY_QUICK_BATTLE=1
+endif
+
+include $(shell $(CONFIG_TOOL) --makefile)

@@ -1,0 +1,52 @@
+palettes:
+  - name: mainpalette
+    fixed-entries:
+      - image: mainpalette.png
+    quality: 10
+
+converts:
+  - name: blox_gfx
+    palette: mainpalette
+    transparent-index: 243
+    images:
+      - blox/*.png
+
+  - name: gui_gfx
+    palette: mainpalette
+    transparent-index: 243
+    images:
+      - gui/*.png
+
+  - name: enemy_gfx
+    palette: mainpalette
+    transparent-index: 243
+    images:
+      - enemy/*.png
+
+  - name: effect_gfx
+    palette: mainpalette
+    transparent-index: 243
+    images:
+      - effect/*.png
+
+outputs:
+  - type: c
+    directory: out/
+    converts:
+      - blox_gfx
+    include-file: blox_gfx.h
+  - type: c
+    directory: out/
+    converts:
+      - gui_gfx
+    include-file: gui_gfx.h
+  - type: c
+    directory: out/
+    converts:
+      - enemy_gfx
+    include-file: enemy_gfx.h
+  - type: c
+    directory: out/
+    converts:
+      - effect_gfx
+    include-file: effect_gfx.h

@@ -1,21 +1,12 @@
-XDEF _fn_DrawNestedSprite
-XDEF _fn_FillSprite
-XDEF _fn_Setup_Palette
-XDEF _fn_PaintSprite
-XDEF _fn_InvertSprite
-XDEF _fn_SetupTimer
-XDEF _fn_SetNewTimerValue
-XDEF _fn_ReadTimer
-XDEF _fn_CheckTimer
-XDEF _fn_StopTimer
+extern _transparent_color
 
+assume adl=1
 
-XREF _transparent_color
-
-.ASSUME ADL=1
+section .text
 
 ;in:	arg0=smallSpritePtr, arg1=bigSpritePtr, arg2=Xpos, arg3=Ypos
 ;       +3                   +6                 +9         +12        +15
+public _fn_DrawNestedSprite
 _fn_DrawNestedSprite:
 	LD	IY,0
 	ADD	IY,SP
@@ -53,9 +44,10 @@ drawNestedSpriteLoop:
 	DEC	A
 	JR	NZ,drawNestedSpriteLoop
 	RET
-		
+
 ;in:	arg0=spriteAdr arg1=color
 ;       +3             +6
+public _fn_FillSprite
 _fn_FillSprite:
 	POP	BC  ;RETURN ADDRESS
 	POP	HL  ;SPRITE ADDRESS
@@ -77,6 +69,7 @@ _fn_FillSprite:
 	RET
 
 ;in: No inputs
+public _fn_Setup_Palette
 _fn_Setup_Palette:
 	LD HL,0E30019h
 	RES 0,(HL)       ;Reset BGR bit to make our mapping correct
@@ -122,6 +115,7 @@ setupPaletteLoop:
 
 ;in:	arg0=spriteAdr, arg1=color
 ;       +3              +6        
+public _fn_PaintSprite
 _fn_PaintSprite:
 	POP	BC  ;RETURN ADDRESS
 	POP	HL  ;SPRITE ADDRESS
@@ -162,6 +156,7 @@ NEW_TIMER_VALUES_END:
 
 ;in:	arg0=spriteAdr
 ;       +3            
+public _fn_InvertSprite
 _fn_InvertSprite:
 	POP	BC  ;RETURN ADDRESS
 	POP	HL  ;SPRITE ADDRESS
@@ -188,6 +183,7 @@ fn_invertsprite_skip:
 	RET
 
 
+public _fn_StopTimer
 _fn_StopTimer:
 	LD	IY,0F20000h
 	XOR	A,A
@@ -197,17 +193,22 @@ _fn_StopTimer:
 
 ;in:	arg0=timerResetValue
 ;       +3  
+public _fn_SetupTimer
 _fn_SetupTimer:
 	CALL _fn_StopTimer
 	LEA	DE,IY+0
 	LD	HL,NEW_TIMER_VALUES
 	LD	BC,NEW_TIMER_VALUES_END-NEW_TIMER_VALUES
 	LDIR
-	LD	HL,1092
+	POP	BC
+	POP	HL
+	PUSH	HL
+	PUSH	BC
 	LD	(TimerValue),HL
 	LD	(IY+30h),00000011b  ;timer1 on, timer1 src xtal
 	RET
 	
+public _fn_SetNewTimerValue
 _fn_SetNewTimerValue:
 	POP	BC
 	POP	HL
@@ -217,11 +218,13 @@ _fn_SetNewTimerValue:
 	RET
 
 ;returns timer as int	
+public _fn_ReadTimer
 _fn_ReadTimer:
 	LD HL,(0F20000h)
 	RET
 	
 ;return value: 0=fine, nonzero=underflowed and reset
+public _fn_CheckTimer
 _fn_CheckTimer:
 	LD	IY,0F20000h
 	XOR	A,A

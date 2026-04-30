@@ -24,7 +24,6 @@
 #include <intce.h>
 #include <keypadc.h>
 #include <graphx.h>
-#include <decompress.h>
 #include <fileioc.h>
 
 #include "defs.h"
